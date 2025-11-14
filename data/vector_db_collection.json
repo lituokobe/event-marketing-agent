@@ -1,0 +1,30 @@
+[
+  {
+    "node_id": "BN1",
+    "db_collection_name": "collection_BN1"
+  },
+  {
+    "node_id": "BN2",
+    "db_collection_name": "collection_BN2"
+  },
+  {
+    "node_id": "BN3",
+    "db_collection_name": "collection_BN3"
+  },
+  {
+    "node_id": "BN4",
+    "db_collection_name": "collection_BN4"
+  },
+  {
+    "node_id": "BN5",
+    "db_collection_name": "collection_BN5"
+  },
+  {
+    "node_id": "BN6",
+    "db_collection_name": "collection_BN6"
+  },
+  {
+    "node_id": "BN7",
+    "db_collection_name": "collection_BN7"
+  }
+]

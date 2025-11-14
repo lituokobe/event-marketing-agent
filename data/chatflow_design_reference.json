@@ -1,0 +1,262 @@
+{
+chatflow_design.json  "starting_main_flow_id" : "MF1",
+  "main_flows" : [
+    {
+      "main_flow_id" : "MF1",
+      "main_flow_name" : "主流程一开场白",
+      "main_flow_content" : {
+        "starting_node_id" : "BN1",
+        "base_nodes" : [
+          {
+            "node_id": "BN1",
+            "node_name": "开场白",
+            "default_reply_id": [{
+              "id": "dfdfd",
+              "content": "您好，我是XXX的客服。近期我们针对XX的业主举办一个关于老房子翻新，毛胚房设计和局部改动的实景样品房体验展。如果您近期或明年有装修计划的话，可以到现场免费体验了解一下。",
+            }],"
+            ## default_reply_url": [],"",
+            # Check: "db_collection_name": "collection_BN1",
+            "active_intention_ids": ["003", "006", "007"], 意图库id
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN2",
+            "node_name": "解释开场白",
+            "default_reply": "是这样的，近期在xx有个免费的家装实景体验展，现场您可以了解到智能家居，以及不同的装修风格。您看有没有兴趣来体验一下？",
+            "default_reply_url": "",
+            "db_collection_name": "collection_BN2",
+            "active_intention_ids": ["003", "007", "008"],
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN3",
+            "node_name": "首次挽回",
+            "default_reply": "咱们现在不考虑也可以先过来了解一下目前装修市场的人工材料的费用。可以避免后期装修的一些猫腻和水分。现场时有最新风格的实景样板房可以免费参观体验，如果您家里近两年可能有装修的想法都可以先过来参观了解一下的。",
+            "default_reply_url": "",
+            "db_collection_name": "collection_BN3",
+            "active_intention_ids": ["003", "007"],
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN4",
+            "node_name": "发送资料挽回",
+            "default_reply": "不管您来不来，如果近一年内有装修需求，我们都可以免费提供两本以上针对上海业主的装修宝典给您，一本是总结了近十年内装修业主的心得体会和装修猫腻，另一本是目前市面上热门的主辅材的品牌型号价格表。稍后让我们的家装顾问和您联系取人具体情况，您看可以吗？",
+            "default_reply_url": "",
+            "db_collection_name": "collection_BN4",
+            "active_intention_ids": ["003", "007"],
+            "enable_logging": true
+          }
+        ],
+        "transfer_nodes" : [
+          {
+            "node_id": "TN1",
+            "node_name": "肯定",
+            "default_reply": "",
+            ## "default_reply_url": "",
+            "type": "1|2|3",
+            "transfer_node_id": "MF2",
+            "enable_logging": true
+          },
+          {
+            "node_id": "TN2",
+            "node_name": "挽回成功",
+            "default_reply": "好的，稍后我们的家装顾问会和您电话联系，确认具体情况。",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          },
+          {
+            "node_id": "TN3",
+            "node_name": "客户拒绝",
+            "default_reply": "那不好意思打扰您了，以后我们有其他优惠活动再跟您取得联系，好吧？祝您生活愉快，再见。",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          }
+        ],
+        "edge_setups": [
+          {
+            "node_id": "BN1",
+            "node_name": "开场白",
+            "node_edge_route": {
+              "003": "BN3",
+              "007": "TN1",
+              "006": "BN2",
+              "others": "MF3"
+            },
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN2",
+            "node_name": "解释开场白",
+            "node_edge_route": {
+              "003": "BN3",
+              "007": "TN1",
+              "008": "BN4",
+              "others": "MF3"
+            },
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN3",
+            "node_name": "首次挽回",
+            "node_edge_route": {
+              "003": "BN4",
+              "007": "TN2",
+              "others": "MF3"
+            },
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN4",
+            "node_name": "发送资料挽回",
+            "node_edge_route": {
+              "003": "TN3",
+              "007": "TN2",
+              "others": "MF3"
+            },
+            "enable_logging": true
+          }
+        ]
+      }
+    },
+    {
+      "main_flow_id" : "MF2",
+      "main_flow_name" : "主流程二业务介绍",
+      "main_flow_content" : {
+        "starting_node_id" : "BN5",
+        "base_nodes" : [
+          {
+            "node_id": "BN5",
+            "node_name": "活动介绍",
+            "default_reply": "本次会诊是有直接还原了在建工地样板间和本年度最新风格的整体实景样板房，对未来装修非常有借鉴意义，您看是不是来免费体验一下。",
+            "default_reply_url": "",
+            "db_collection_name": "collection_BN5",
+            "active_intention_ids": ["003", "007"],
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN6",
+            "node_name": "资料发送挽回",
+            "default_reply": "不管您来不来，如果近一年内有装修需求，我们都可以免费提供两本以上针对上海业主的装修宝典给您，一本是总结了近十年内装修业主的心得体会和装修猫腻，另一本是目前市面上热门的主辅材的品牌型号价格表。稍后让我们的家装顾问和您联系取人具体情况，您看可以吗？",
+            "default_reply_url": "",
+            "db_collection_name": "collection_BN6",
+            "active_intention_ids": ["003", "007"],
+            "enable_logging": true
+          }
+        ],
+        "transfer_nodes" : [
+          {
+            "node_id": "TN4",
+            "node_name": "沟通成功",
+            "default_reply": "好的，稍后我们的家装顾问会和您电话联系，确认具体情况。",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          },
+          {
+            "node_id": "TN5",
+            "node_name": "客户拒绝",
+            "default_reply": "那不好意思打扰您了，以后我们有其他优惠活动再跟您取得联系，好吧？祝您生活愉快，再见。",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          }
+        ],
+        "edge_setups": [
+          {
+            "node_id": "BN5",
+            "node_name": "活动介绍",
+            "node_edge_route": {
+              "003": "BN6",
+              "007": "TN4",
+              "others": "MF3"
+            },
+            "enable_logging": true
+          },
+          {
+            "node_id": "BN6",
+            "node_name": "资料发送挽回",
+            "node_edge_route": {
+              "003": "TN5",
+              "007": "TN4",
+              "others": "MF3"
+            },
+            "enable_logging": true
+          }
+        ]
+      }
+    },
+    {
+      "main_flow_id" : "MF3",
+      "main_flow_name" : "主流程兜底询问",
+      "main_flow_content" : {
+        "starting_node_id" : "BN7",
+        "base_nodes" : [
+          {
+            "node_id": "BN7",
+            "node_name": "兜底询问",
+            "default_reply": "不好意思哦，刚没听清，我们会给您免费提供一份资料，您装修时肯定用得到！稍后由我们家装顾问和您联系确认具体情况，你看可以吗？",
+            "default_reply_url": "",
+            "db_collection_name": "collection_BN7",
+            "active_intention_ids": ["003", "007"],
+            "enable_logging": true
+          }
+        ],
+        "transfer_nodes" : [
+          {
+            "node_id": "TN6",
+            "node_name": "肯定",
+            "default_reply": "好的，稍后我们的家装顾问会和您电话联系，确认具体情况。",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          },
+          {
+            "node_id": "TN7",
+            "node_name": "客户拒绝",
+            "default_reply": "那不好意思打扰您了，以后我们有其他优惠活动再跟您取得联系，好吧？祝您生活愉快，再见。",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          }
+        ],
+        "edge_setups": [
+          {
+            "node_id": "BN7",
+            "node_name": "兜底询问",
+            "node_edge_route": {
+              "003": "TN7",
+              "007": "TN6",
+              "others": "MF4"
+            },
+            "enable_logging": true
+          }
+        ]
+      }
+    },
+    {
+      "main_flow_id" : "MF4",
+      "main_flow_name" : "主流程兜底挂断",
+      "main_flow_content" : {
+        "starting_node_id" : "TN8",
+        "base_nodes" : [
+        ],
+        "transfer_nodes" : [
+          {
+            "node_id": "TN8",
+            "node_name": "兜底挂断",
+            "default_reply": "好的，稍后我们的家装顾问会和您电话联系，确认具体情况。请您保持手机畅通，祝您生活愉快，再见！",
+            "default_reply_url": "",
+            "transfer_node_id": "hang_up",
+            "enable_logging": true
+          }
+        ],
+        "edge_setups": [
+        ]
+      }
+    }
+  ]
+}
+
+

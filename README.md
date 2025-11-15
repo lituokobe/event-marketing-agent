@@ -1,24 +1,25 @@
 # Intelligent Customer Service Chatbot -- Creation Engine
 
-This project provides an engine that allows users to freely design a
+This project provides an engine that allows business managers to freely design a
 conversation flow based on nodes and conditional edges, and then build
 an intelligent customer-service chatbot system powered by large language
 models (LLMs).
 
-The generated system can recognize user intents in real time, respond
+The generated system can recognize customer intentions in real time, respond
 accordingly, and effectively handle customer service tasks and
 business-promotion scenarios.
+![example_UI](./example_UI.jpg)
 
 ## Features
 
 -   **Custom Conversation Flow**: Freely orchestrate dialogue logic
     using normal nodes, transition nodes, and conditional edges
     according to business needs.
--   **Custom Intent Library**: Define keywords, question patterns, and
-    LLM-based descriptions to detect user intent. These intents can be
+-   **Custom Intention Library**: Define keywords, question patterns, and
+    LLM-based descriptions to detect customer intentions. These intents can be
     used when building normal nodes.
--   **Custom Knowledge Base**: For global questions that users may ask
-    at any point, the system uses knowledge-base intent detection. You
+-   **Custom Knowledge Base**: For global questions that customers may ask
+    at any point, the system uses knowledge-base intention detection. Users
     can configure whether a node prioritizes its local intent library or
     the global knowledge base.
 -   **Multi-strategy Intent Detection**: Combines keyword matching,
@@ -83,7 +84,7 @@ Project data is stored in the `./data` directory:
 -   `intent_data.json` --- Intent library configuration. Nodes will use
     specific intents according to project needs
 -   `knowledge.json` --- Knowledge-base configuration for answering
-    global user questions
+    global customer questions
 -   `vector_db_collection.json` --- Vector DB configuration used for
     question-pattern retrieval
 

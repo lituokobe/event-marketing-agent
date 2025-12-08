@@ -1,12 +1,11 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from config.paths import ENV_PATH
+from data.paths import ENV_PATH
 load_dotenv(ENV_PATH)
 
 ALI_API_KEY = os.getenv("ALI_API_KEY")
 ALI_BASE_URL = os.getenv("ALI_BASE_URL")
-LOCAL_BASE_URL = os.getenv("LOCAL_BASE_URL")
 
 qwen_llm = ChatOpenAI(
     model = 'qwen-plus',

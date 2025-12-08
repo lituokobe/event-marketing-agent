@@ -1,20 +1,26 @@
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.redis import RedisSaver
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 from config.config_setup import ChatFlowConfig
-from config.paths import VECTOR_DB_PATH
-from elements.edge_initialization import create_edges
+from elements.edge_initialization import create_edges, create_knowledge_edges, create_global_edges
 from elements.hang_up_node import hang_up
-from elements.node_initialization import create_base_node, create_transfer_node
+from elements.node_initialization import create_base_node, create_transfer_node, create_knowledge_reply_node, \
+    create_global_reply_node
 from functionals.log_utils import logger_chatflow
 from functionals.matchers import KeywordMatcher, SemanticMatcher
+from functionals.milvus import LaunchMilvus
 from functionals.state import ChatState
 
-def build_chatflow(chatflow_config: ChatFlowConfig):
-    # Load the design and configuration for the chatflow
+def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSaver | None = None):
+    # TODO: Load all the resources
     agent_config = chatflow_config.agent_config
     knowledge_context = chatflow_config.knowledge_context
-    # Set up matchers in knowledge_context
+    chatflow_design_context = chatflow_config.chatflow_design_context
+    global_config_context = chatflow_config.global_config_context
+    intentions = chatflow_config.intentions
+
+    # TODO: Set up matchers for knowledge
     """
     When use_llm is off or 
     llm_threshold > 0 even if use_llm is on (meaning we still use the traditional approaches if user input is below this threshold),
@@ -22,126 +28,185 @@ def build_chatflow(chatflow_config: ChatFlowConfig):
     """
     knowledge_keyword_matcher = None
     knowledge_semantic_matcher = None
-    if not agent_config.use_llm or agent_config.llm_threshold > 0:
-        # for intentions from knowledge
-        knowledge_keyword_matcher = KeywordMatcher(knowledge_context.knowledge)
-        knowledge_semantic_matcher = SemanticMatcher(
-            "knowledge_collection",
-            VECTOR_DB_PATH,
-            knowledge_context.knowledge)
+    milvus_client = None
+
+    if agent_config.enable_nlp == 1: # Use semantic matching globally
+        if agent_config.use_llm !=1 or agent_config.llm_threshold > 0:
+            # for intentions from knowledge
+            knowledge_keyword_matcher = KeywordMatcher(knowledge_context.knowledge)
+            # Initialize Milvus client
+            milvus_client = LaunchMilvus(agent_config.vector_db_url, agent_config.collection_name, intentions, knowledge_context.knowledge).client
+            # Initialize knowledge_semantic_matcher
+            knowledge_semantic_matcher = SemanticMatcher(
+                agent_config.collection_name,
+                [item.get("intention_id") for item in knowledge_context.knowledge],
+                milvus_client,
+            )
+    else:
+        if agent_config.use_llm != 1 or agent_config.llm_threshold > 0:
+            # for intentions from knowledge
+            knowledge_keyword_matcher = KeywordMatcher(knowledge_context.knowledge)
 
     knowledge_context.keyword_matcher=knowledge_keyword_matcher
     knowledge_context.semantic_matcher=knowledge_semantic_matcher
 
-    chatflow_design = chatflow_config.chatflow_design
-    intentions = chatflow_config.intentions
-    dialog_lookup = chatflow_config.dialog_lookup
-    vector_db_collection_lookup = chatflow_config.vector_db_collection_lookup
-
-    # Create a look-up dict of main_flow_id -> starting_node_id.
-    # This is helpful in identifying the structure of the chatflow design.
-    starting_node_lookup = {
-        flow.get("main_flow_id", None): flow.get("main_flow_content", {}).get("starting_node_id", None)
-        for flow in chatflow_design.get("main_flows", [])
-    }
-
-    # Find the id of starting node of the starting main flow.
-    # This node is special because it's triggered first without user's input.
-    starting_main_flow_id = chatflow_design.get("starting_main_flow_id", None)
-    if not isinstance(starting_main_flow_id, str):
-        e_m = "初始主流程ID必须为字符串"
-        logger_chatflow.error(e_m)
-        raise TypeError(e_m)
-
-    starting_node_id = starting_node_lookup.get(starting_main_flow_id, None)
-    if not isinstance(starting_node_id, str):
-        e_m = "初始节点ID必须为字符串"
-        logger_chatflow.error(e_m)
-        raise TypeError(e_m)
-
-    # Router function to directly the conversation back to the last node in the state stack before assistant's response
+    # TODO: Router function to directly the conversation back to the last node in the state stack before assistant's response
     def route_to_workflow(state: ChatState) -> str:
         dialog_state = state.get("dialog_state", [])
         if not dialog_state:  # At the beginning, send to the first node
-            return f"{starting_node_id}_reply"
+            return f"{chatflow_design_context.starting_node_id}_reply"
         elif dialog_state[-1] == "hang_up":
             return END
         else:
             return dialog_state[-1]
 
-    # TODO Start to build the Graph officially
+    # TODO: Start to build the Graph officially
     graph = StateGraph(ChatState)
     # Create hang_up node. It's better to be created first, other the factory functions later will
     # automatically build edges connected to this node.
     graph.add_node("hang_up", hang_up)
 
-    # Iterate the main flows:
-    for main_flow in chatflow_design.get("main_flows", []):
+    # TODO: Iterate and build the main flows:
+    for main_flow in chatflow_design_context.chatflow_design:
         if not main_flow:
-            e_m = "设计不包含任何主流程"
+            e_m = "主流程不应为空"
             logger_chatflow.error(e_m)
             raise TypeError(e_m)
 
-        main_flow_content = main_flow.get("main_flow_content", {})
+        main_flow_content = main_flow.get("main_flow_content")
         if not main_flow_content:
-            e_m = "主流程不包含任何节点"
+            e_m = (f"{main_flow.get('main_flow_id')}-{main_flow.get('main_flow_name')}"
+                   f"主流程不包含任何节点")
             logger_chatflow.error(e_m)
             raise TypeError(e_m)
 
         # Create base nodes:
         base_nodes = main_flow_content.get("base_nodes", [])
-
         for base_node in base_nodes:
             create_base_node(
                 graph,
-                main_flow["main_flow_id"],
-                main_flow["main_flow_name"],
-                base_node["node_id"],
-                base_node["node_name"],
-                base_node["default_reply_id_list"],
-                vector_db_collection_lookup.get(base_node["node_id"], ""),
-                base_node["intention_branches"],
-                base_node["enable_logging"],
+                main_flow,
+                "regular",
+                base_node,
                 agent_config,
                 knowledge_context,
+                global_config_context,
                 intentions,
-                dialog_lookup,
+                milvus_client
             )
 
         # Create transfer nodes
         transfer_nodes = main_flow_content.get("transfer_nodes", [])
-
         for transfer_node in transfer_nodes:
             create_transfer_node(
                 graph,
-                main_flow["main_flow_id"],
-                main_flow["main_flow_name"],
-                transfer_node["node_id"],
-                transfer_node["node_name"],
-                transfer_node["default_reply_id_list"],
-                transfer_node["transfer_node_id"],
-                transfer_node["enable_logging"],
-                starting_node_lookup,
-                dialog_lookup,
-                agent_config
+                main_flow,
+                "regular",
+                transfer_node,
+                agent_config,
+                chatflow_design_context
             )
 
         # Create the conditional edges from the base nodes
         edge_setups = main_flow_content.get("edge_setups", [])
-
         for edge_setup in edge_setups:
             create_edges(
                 graph,
-                main_flow["main_flow_id"],
-                main_flow["main_flow_name"],
-                edge_setup["node_id"],
-                edge_setup["node_name"],
-                edge_setup["node_edge_route"],
-                edge_setup["enable_logging"],
-                starting_node_lookup
+                main_flow,
+                edge_setup,
+                chatflow_design_context,
+                knowledge_context
             )
 
-    # Create the conditional edges from the START node
+    # TODO: Create nodes and edges of knowledge
+    # Create knowledge reply nodes
+    for knowledge_info in knowledge_context.knowledge:
+        if knowledge_info.get("answer_type") == 1: #  1-单轮回答 2-多轮回答
+            # Only when single round reply is checked, we create knowledge reply node
+            create_knowledge_reply_node(
+                graph,
+                knowledge_info,
+                agent_config
+            )
+            create_knowledge_edges(
+                graph,
+                knowledge_info,
+                chatflow_design_context
+            )
+
+    # Create knowledge main flows if any
+    knowledge_main_flow = knowledge_context.main_flow
+    if knowledge_main_flow: # Only
+        for main_flow in knowledge_main_flow:
+            if not main_flow:
+                e_m = "知识库流程不应为空"
+                logger_chatflow.error(e_m)
+                raise TypeError(e_m)
+
+            main_flow_content = main_flow.get("main_flow_content", {})
+            if not main_flow_content:
+                e_m = (f"{main_flow.get('main_flow_id')}-{main_flow.get('main_flow_name')}"
+                       f"知识库流程不包含任何节点")
+                logger_chatflow.error(e_m)
+                raise TypeError(e_m)
+
+            # Create knowledge base nodes:
+            base_nodes = main_flow_content.get("base_nodes", [])
+            for base_node in base_nodes:
+                create_base_node(
+                    graph,
+                    main_flow,
+                    "knowledge",
+                    base_node,
+                    agent_config,
+                    knowledge_context,
+                    global_config_context,
+                    intentions,
+                    milvus_client
+                )
+
+            # Create knowledge transfer nodes
+            transfer_nodes = main_flow_content.get("transfer_nodes", [])
+            for transfer_node in transfer_nodes:
+                create_transfer_node(
+                    graph,
+                    main_flow,
+                    "knowledge",
+                    transfer_node,
+                    agent_config,
+                    chatflow_design_context
+                )
+
+            # Create the conditional edges from the knowledge base nodes
+            edge_setups = main_flow_content.get("edge_setups", [])
+            for edge_setup in edge_setups:
+                create_edges(
+                    graph,
+                    main_flow,
+                    edge_setup,
+                    chatflow_design_context,
+                    knowledge_context
+                )
+
+    # TODO: Create nodes and edges of globals
+    # Create knowledge reply nodes
+    for global_config in global_config_context.global_configs:
+        create_global_reply_node(
+            graph,
+            global_config,
+            agent_config
+        )
+        # Create the conditional edges from knowledge reply nodes
+        create_global_edges(
+            graph,
+            global_config,
+            chatflow_design_context
+        )
+
+    # TODO: Create the conditional edges from the START node
     graph.add_conditional_edges(START, route_to_workflow)
+
+    if redis_checkpointer:
+        return graph.compile(checkpointer=redis_checkpointer) # In production environment, use Redis as the checkpointer
 
     return graph.compile(checkpointer=MemorySaver())

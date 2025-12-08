@@ -4,7 +4,7 @@ from functionals.matchers import KeywordMatcher, SemanticMatcher
 
 # Combine the intention keyword matcher and the knowledge keyword matcher based on user's preference of intention_priority
 def integrated_keywords_matcher(user_input:str,
-                                intention_priority:str,
+                                intention_priority:int,
                                 keyword_matcher:KeywordMatcher,
                                 knowledge_keyword_matcher:KeywordMatcher):
     """
@@ -21,11 +21,11 @@ def integrated_keywords_matcher(user_input:str,
             return (*matcher.get_primary_type(result), inference_label)
         return None
 
-    if intention_priority == "回答分支优先":
+    if intention_priority == 2:
         match = try_match(keyword_matcher, "意图库") or try_match(knowledge_keyword_matcher, "知识库")
-    elif intention_priority == "知识库优先":
+    elif intention_priority == 1:
         match = try_match(knowledge_keyword_matcher, "知识库") or try_match(keyword_matcher, "意图库")
-    elif intention_priority == "智能匹配优先":
+    elif intention_priority == 3:
         intention_result = keyword_matcher.analyze_sentence(user_input)
         knowledge_result = knowledge_keyword_matcher.analyze_sentence(user_input)
         integrated_result = intention_result | knowledge_result if intention_result or knowledge_result else {}
@@ -45,8 +45,8 @@ def integrated_keywords_matcher(user_input:str,
 
 # Combine the intention semantic matcher and the knowledge semantic matcher based on user's preference of intention_priority
 def integrated_semantic_matcher(user_input:str,
-                                cosine_threshold:float,
-                                intention_priority: str,
+                                nlp_threshold:float,
+                                intention_priority: int,
                                 semantic_matcher:SemanticMatcher,
                                 knowledge_semantic_matcher:SemanticMatcher):
     """
@@ -60,15 +60,15 @@ def integrated_semantic_matcher(user_input:str,
         result = matcher.find_most_similar(user_input)
         if result:
             tid, tname, cont, score = result
-            if score > cosine_threshold:
+            if score > nlp_threshold:
                 return tid, tname, cont, score, label
         return None
 
-    if intention_priority == "回答分支优先":
+    if intention_priority == 2:
         match = try_match(semantic_matcher, "意图库") or try_match(knowledge_semantic_matcher, "知识库")
-    elif intention_priority == "知识库优先":
+    elif intention_priority == 1:
         match = try_match(knowledge_semantic_matcher, "知识库") or try_match(semantic_matcher, "意图库")
-    elif intention_priority == "智能匹配优先":  # If there is no active intentions
+    elif intention_priority == 3:  # If there is no active intentions
         intention_result = semantic_matcher.find_most_similar(user_input)
         knowledge_result = knowledge_semantic_matcher.find_most_similar(user_input)
         # Unpack safely
@@ -76,9 +76,9 @@ def integrated_semantic_matcher(user_input:str,
             tid_i, tname_i, cont_i, score_i = intention_result
             tid_k, tname_k, cont_k, score_k = knowledge_result
 
-            if score_i > cosine_threshold and score_i >= score_k:
+            if score_i > nlp_threshold and score_i >= score_k:
                 match = (tid_i, tname_i, cont_i, score_i, "意图库")
-            elif score_k > cosine_threshold and score_k > score_i:
+            elif score_k > nlp_threshold and score_k > score_i:
                 match = (tid_k, tname_k, cont_k, score_k, "知识库")
             else:
                 match = None

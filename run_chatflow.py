@@ -1,94 +1,100 @@
+import redis
+from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.redis import RedisSaver
 from agent_builders.chatflow_builder import build_chatflow
 from config.config_setup import ChatFlowConfig
-from config.paths import AGENT_DATA_PATH, INTENTION_PATH, KNOWLEDGE_PATH, VECTOR_DB_PATH, CHATFLOW_DESIGN_PATH, \
-    DIALOG_PATH, VECTOR_BD_COLLECTION_PATH
+from config.db_setting import DBSetting
+from data.simulated_data import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
 from functionals.log_utils import logger_chatflow
-from functionals.state import ChatState
-
-# Conversation config for one round of chat
-conv_config = {"configurable": {"thread_id": "test_conv_1"}}
 
 # The function to run the chatflow
-def main():
-    chatflow_config = ChatFlowConfig.from_paths(
-        AGENT_DATA_PATH,
-        KNOWLEDGE_PATH,
-        CHATFLOW_DESIGN_PATH,
-        INTENTION_PATH,
-        DIALOG_PATH,
-        VECTOR_BD_COLLECTION_PATH,
-        VECTOR_DB_PATH
+def main(call_id: str, fresh_start: bool = True):
+    # Initialize chatflow config
+    chatflow_config = ChatFlowConfig.from_files(
+        agent_data,
+        knowledge,
+        knowledge_main_flow,
+        chatflow_design,
+        global_configs,
+        intentions
     )
-    chatflow = build_chatflow(chatflow_config)
+    # Initialize conv config
+    conv_config = {"configurable": {"thread_id": call_id}}
+
+    # Redis
+    settings = DBSetting()
+    redis_pool = redis.ConnectionPool(
+        host=settings.REDIS_SERVER,
+        password=settings.REDIS_PASSWORD,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB, # Redis Search requires index be built on database 0
+        decode_responses=False, #Let Redis reserve the binary data, instead converting it to Python strings
+        max_connections=50
+    )
+    redis_client = redis.Redis(connection_pool=redis_pool)
+    redis_checkpointer = RedisSaver(redis_client=redis_client)
+    redis_checkpointer.setup() # Create and config Redis Search index
+
+    # Check if need to remove history from the call ID
+    if fresh_start:
+        redis_checkpointer.delete_thread(call_id)
+        logger_chatflow.info("系统消息：%s", f"{call_id}新对话")
+    else:
+        logger_chatflow.info("系统消息：%s", f"{call_id}重启对话")
+
+    # Build chatflow
+    chatflow = build_chatflow(chatflow_config, redis_checkpointer=redis_checkpointer)
 
     print("=== 智能客服已上线 ===\n")
 
-    # Initial state
-    state = ChatState(
-        messages=[],
-        dialog_state=[],
-        metadata=[{
-            "role":"",
-            "content":"",
-            "intention_tag":"",
-            "branch_count":{},
-            "dialog_id":"",
-            "logic":{
-                "user_logic_title":{},
-                "assistant_logic_title":"",
-                "detail":{}
-            }
-        }]
-    )
-
-    # Step 1: Trigger welcome message
-    state = chatflow.invoke(state, config=conv_config)
+    # Step 1: Use empty input to trigger welcome message
+    state = chatflow.invoke({"messages": [HumanMessage(content="")]}, config=conv_config)
 
     # Print initial assistant message
-    last_msg = state["messages"][-1]
-    if last_msg["role"] == "assistant":
-        logger_chatflow.info("智能客服：%s", {last_msg['content']})
-        print(f"智能客服：{last_msg['content']}")
-        previous_metadata = state["metadata"][-1]
-        print("回复数据：\n" + "\n".join(f"{k}: {v}" for k, v in previous_metadata.items()))
+    messages = state.get("messages")
+    if messages:
+        if isinstance(messages, list):
+            last_msg = messages[-1]
+            if last_msg.__class__.__name__ == "AIMessage":
+                print(f"智能客服：{last_msg.content}")
 
     print()
-
     # Step 2: Main conversation loop
     while True:
         # Get user input
         user_input = input("用户：").strip()
-        logger_chatflow.info("用户：%s", {user_input})
         if user_input.lower() == "挂电话":
             log_info = "用户已挂断电话"
             logger_chatflow.info("系统消息：%s", log_info)
             break
 
-        # Inject user message
-        state["messages"].append({"role": "user", "content": user_input})
+        # Record current state BEFORE processing
+        prev_msg_count = len(state["messages"])
+        # Create user message
+        new_user_message = {"messages": [HumanMessage(content=user_input)]}
 
         # Resume workflow
         try:
-            state = chatflow.invoke(state, config=conv_config)
+            state = chatflow.invoke(new_user_message, config=conv_config) # invoke is best for call-bot, stream for text-bot
         except Exception as e:
             logger_chatflow.error("系统错误：%s", {e})
             break
 
-        # Print and log new assistant messages
-        for msg in state["messages"][-1:]:
-            if msg["role"] == "assistant":
-                logger_chatflow.info("智能客服：%s", {msg['content']})
-                print(f"智能客服： {msg['content']}")
-                metadata = state["metadata"][-1]
-                print("回复数据：\n" + "\n".join(f"{k}: {v}" for k, v in metadata.items()))
-        print()
+        # Get ONLY new messages and metadata generated in this turn
+        new_messages = state["messages"][prev_msg_count:]
+
+        # Print all new assistant messages with their metadata
+        for idx, msg in enumerate(new_messages):
+            if msg.__class__.__name__ == "AIMessage":
+                print(f"智能客服：{msg.content}")  # Use .content, not ['content']
+        print()  # Extra newline after all messages
 
     return state
 
 if __name__ == "__main__":
-    state = main()
+    state = main("test_call")
 
-    # Export state
+    # # Export state
     # def convert(obj):
     #     if isinstance(obj, set):
     #         return list(obj)
@@ -99,8 +105,19 @@ if __name__ == "__main__":
     # Print final messages
     print("=== 智能客服已下线 ===")
     print("聊天记录：")
-    for chat in state["messages"]:
-        print(f"{chat['role']}: {chat['content']}")
+    for msg in state["messages"]:
+        if msg.__class__.__name__ == "AIMessage":
+            print(f"智能客服：{msg.content}")
+        if msg.__class__.__name__ == "HumanMessage":
+            print(f"用户：{msg.content}")
+    print("-"*50)
+    print("状态历史：")
+    print(state["dialog_state"])
+    print("-" * 50)
     print("元数据：")
     for metadata in state["metadata"]:
         print(metadata)
+    print("-" * 50)
+    print("LOGS：")
+    for log in state["logs"]:
+        print(log)

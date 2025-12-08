@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Any, Literal
 from pydantic import create_model, BaseModel, Field
 
@@ -6,14 +5,13 @@ from pydantic import create_model, BaseModel, Field
 import ahocorasick
 
 # Semantic approach
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
+from pymilvus import MilvusClient
 
 from functionals.log_utils import logger_chatflow
-from functionals.utils import str_dict_select
+from models.embedding_functions import embed_query
 
 # Models
-from models.embeddings import qwen3_embedding_model
+# from models.embeddings import qwen3_embedding_model
 from models.models import qwen_llm
 
 # Configuration
@@ -98,57 +96,60 @@ class KeywordMatcher:
 
 # TODO: Create a semantic matching class
 class SemanticMatcher:
-    def __init__(self,
-                 db_collection_name: str,
-                 vector_db_path:str|Path,
-                 intentions:list):
-        # Create vector store
-        self.vector_store = Chroma(
-            collection_name=db_collection_name,
-            embedding_function=qwen3_embedding_model,
-            persist_directory=vector_db_path,
-            collection_metadata={"hnsw:space": "cosine"},
-        )
-
-        if intentions:
-            self.embed_semantic(intentions)
-
-    def embed_semantic(self, intentions:list[dict]):
-        """
-        Embed semantic sentences configured by users to the vector database.
-        """
-        docs_embed = []
-        ids_embed = []
-        for intention in intentions:
-            for i, sentence in enumerate(intention["semantic"]):
-                doc = Document(
-                    page_content=sentence,
-                    metadata={
-                        "intention_id": intention["intention_id"],
-                        "intention_name": intention["intention_name"],
-                        "original_sentence": sentence  # save the semantic sentence
-                    }
-                )
-                doc_id = f'{intention["intention_id"]}_{intention["intention_name"]}_id_{i + 1}'
-                docs_embed.append(doc)
-                ids_embed.append(doc_id)
-
-        if docs_embed:
-            self.vector_store.add_documents(docs_embed, ids=ids_embed)
+    def __init__(self, collection_name: str, intention_ids: list, milvus_client: MilvusClient | None = None):
+        self.collection_name = collection_name
+        self.milvus_client = milvus_client
+        self.intention_ids = intention_ids
 
     def find_most_similar(self, sentence: str) -> tuple[str, str, str, float]:
-        semantic_res = self.vector_store.similarity_search_with_score(sentence, k=1)
-        if semantic_res:
-            doc, score = semantic_res[0]
-            cos_score = 1.0 - float(score)
-            return (
-                doc.metadata.get("intention_id", "其他"),
-                doc.metadata.get("intention_name", "其他"),
-                doc.page_content,
-                cos_score
+        """
+        Find the most similar intention to the given sentence.
+
+        Returns:
+            tuple: (intention_id, intention_name, phrase, similarity_score)
+            Always returns a valid tuple even when no match is found
+        """
+        DEFAULT_RESULT = ("无", "无", "无", 0.0)
+        if not self.intention_ids:
+            return DEFAULT_RESULT
+
+        try:
+            # Generate query embedding
+            # query_emb = qwen3_embedding_model.embed_documents(sentence)
+            # User embed_documents from embedding_service-embedding_model
+            query_emb = embed_query(sentence)
+            if hasattr(query_emb, 'tolist'):
+                query_emb = query_emb.tolist()
+
+            # Build filter expression: intention_id in ["K003", "I008", ...], Milvus uses string expressions
+            id_list_str = ",".join(f'"{id_}"' for id_ in self.intention_ids)
+            filter_expr = f"intention_id in [{id_list_str}]"
+
+            # Perform search
+            results = self.milvus_client.search(
+                collection_name=self.collection_name,
+                data=[query_emb],
+                filter=filter_expr,
+                limit=1,
+                output_fields=["intention_id", "intention_name", "phrase"],
+                time_out = 3.0
             )
-        else:
-            return "无", "无", "无", 0.0
+
+            # Check if we have results
+            if not results or not results[0]:
+                return DEFAULT_RESULT
+
+            # Extract result safely
+            hit = results[0][0] # hit is a Milvus hit object, similar to dict
+            entity = hit.get("entity", {})
+
+            return (entity.get("intention_id", "无"), entity.get("intention_name", "无"),
+                entity.get("phrase", "无"), hit.get("distance", 0.0))
+
+        except Exception as e:
+            logger_chatflow.error(f"'{sentence}'查询失败: {str(e)}", exc_info=True)
+            # Final fallback
+            return DEFAULT_RESULT
 
 # TODO: Create a LLM inference matching class
 class LLMInferenceMatcher:
@@ -157,7 +158,7 @@ class LLMInferenceMatcher:
                  intentions:list[dict],
                  knowledge_infer_id: dict,
                  knowledge_infer_description: dict,
-                 intention_priority: Literal["知识库优先", "回答分支优先", "智能匹配优先"]):
+                 intention_priority: int):
         self.config = config
         self.intention_infer_id = {} # dict to store intention inference_type -> type_id
         self.intention_infer_descriptions = {} # dict to store intention inference_type -> description
@@ -165,8 +166,14 @@ class LLMInferenceMatcher:
             self.intention_infer_id[intention["intention_name"]] = intention["intention_id"]
             self.intention_infer_descriptions[intention["intention_name"]] = " ".join(intention["llm_description"]) if intention["llm_description"] else ""
 
-        self.knowledge_infer_id = knowledge_infer_id  # dict to store knowledge inference_type -> type_id
-        self.knowledge_infer_description = knowledge_infer_description  # dict to store knowledge inference_type -> description
+        # remove the knowledge item that user specifically ask not to include via "nomatch_knowledge_ids"
+        nomatch_knowledge_ids = config.other_config.get("nomatch_knowledge_ids", [])
+        if not isinstance(nomatch_knowledge_ids, list):
+            e_m = f"{config.node_id}-{config.node_name}节点nomatch_knowledge_ids应为列表"
+            logger_chatflow.error(e_m)
+            raise TypeError(e_m)
+        self.knowledge_infer_id = {k:v for k, v in knowledge_infer_id.items() if v not in nomatch_knowledge_ids} # dict to store knowledge inference_type -> type_id
+        self.knowledge_infer_description = {k:v for k, v in knowledge_infer_description.items() if k in self.knowledge_infer_id} # dict to store knowledge inference_type -> description
 
         # background prompt
         self.llm_role_description = getattr(config.agent_config, "llm_role_description", "")
@@ -183,7 +190,7 @@ class LLMInferenceMatcher:
             return qwen_llm
         return qwen_llm
 
-    def _create_inference_llm(self, intention_priority: str):
+    def _create_inference_llm(self, intention_priority: int):
         """
         Create an LLM with specified inference output.
         """
@@ -200,19 +207,18 @@ class LLMInferenceMatcher:
         # Include the intention descriptions
         for k, v in self.intention_infer_descriptions.items():
             docstring_base.append(f"  - {k}：{v}")
+
         docstring_base.append("**知识库列表** （- 意图：意图说明）")
         if self.knowledge_infer_description:
             for k, v in self.knowledge_infer_description.items():
                 docstring_base.append(f"  - {k}：{v}")
 
-        priority_map = {
-            "回答分支优先":
-                "请牢记两个列表的使用顺序：首先使用**意图库列表**判别用户的意图，并将意图输出为 user_intention。如果无法判别，则使用**知识库列表**判别用户的意图，并将意图输出为 user_intention",
-            "知识库优先":
-                "请牢记两个列表的使用顺序：首先使用**知识库列表**判别用户的意图，并将意图输出为 user_intention。如果无法判别，则使用**意图库列表**判别用户的意图，并将意图输出为 user_intention",
-            "智能匹配优先":
-                "同时使用**知识库列表**和**意图库列表**判别用户的意图，不分先后，并将意图输出为 user_intention"
-        }
+        priority_map = [
+            "", # 1知识库优先 2回答分支优先 3只能匹配优先
+            "请牢记两个列表的使用顺序：首先使用**知识库列表**判别用户的意图，并将意图输出为 user_intention。如果无法判别，则使用**意图库列表**判别用户的意图，并将意图输出为 user_intention",
+            "请牢记两个列表的使用顺序：首先使用**意图库列表**判别用户的意图，并将意图输出为 user_intention。如果无法判别，则使用**知识库列表**判别用户的意图，并将意图输出为 user_intention",
+            "同时使用**知识库列表**和**意图库列表**判别用户的意图，不分先后，并将意图输出为 user_intention"
+        ]
 
         docstring_tail = [
             "如果用户的意图不属于两个列表中的任何意图，或者用户没有任何输入，输出 user_intention 为 '其他'。",
@@ -225,9 +231,11 @@ class LLMInferenceMatcher:
             "如果没有判断出意图，即用户的意图不属于意图库和知识库列表中的任何意图，或者用户没有任何输入，输出 inference_type 为'无'。",
         ]
 
-        # Assemble the prompt based user's preference of intention priority
         docstring = "\n".join(docstring_base + [priority_map[intention_priority]] + docstring_tail)
+        # print(f"当前节点：{self.config.node_id}-{self.config.node_name}\n 以下是大模型提示词 \n {docstring}")
+        # print()
 
+        # Assemble the prompt based user's preference of intention priority
         all_intentions = list(self.intention_infer_id.keys()) + list(self.knowledge_infer_id.keys()) + ["其他"]
 
         InferenceModel = create_model(
@@ -268,58 +276,3 @@ class LLMInferenceMatcher:
             return self.knowledge_infer_id.get(user_intention, "others"), user_intention, input_summary, inference_type
         else:
             return "others", user_intention, input_summary, inference_type
-
-# test
-# if __name__ == "__main__":
-#     agent_config1 = AgentConfig(
-#         use_llm = True,
-#         llm_name = "qwen",
-#         llm_threshold = 3,
-#         llm_context_rounds = 3,
-#         llm_role_description = "你是一个聪明的小助手",
-#         llm_background_info = "你帮助人们回答任何问题",
-#         cosine_threshold = 0.8,
-#         db_path = "../data/test_db123",
-#         db_embedding_model_name = "qwen3_embedding_model",
-#         db_collection_metadata= {"hnsw:space": "cosine"})
-#     config1 = NodeConfig(
-#         main_flow_id = "test_main_flow",
-#         main_flow_name = "test_main_flow",
-#         # Node-specific fields
-#         node_id = "test_node",
-#         node_name = "test_node",
-#         default_reply_id = "test_default_reply",
-#         db_collection_name = "test_db_collection",
-#         intention_branches = [
-#             {"intention_id": "intention1", "intention_name": "intention1"},
-#             {"intention_id": "intention2", "intention_name": "intention2"}
-#         ],
-#         transfer_node_id = "test_transfer_node",
-#         enable_logging = True,
-#         # Global config fields at agent level
-#         agent_config=agent_config1)
-#
-#     filtered_intentions = [
-#         {"intention_id": "I003", "intention_name": "客户拒绝", "llm_description": ["客户拒绝了当前的要求"]},
-#         {"intention_id": "I007", "intention_name": "肯定", "llm_description": ["用户表示肯定"]},
-#         {"intention_id": "I006", "intention_name": "解释开场白", "llm_description": ["用户需要明白为什么打通电话或者为什么在和你对话"]},
-#     ]
-#     knowledge_infer_id = {"用户要求讲重点": "K001"}
-#     knowledge_infer_description = {"用户要求讲重点": "用户要求讲重点"}
-#
-#     matcher = LLMInferenceMatcher(
-#         config=config1,
-#         filtered_intentions=filtered_intentions,
-#         knowledge_infer_id=knowledge_infer_id,
-#         knowledge_infer_description=knowledge_infer_description,
-#         # intention_priority="回答分支优先",
-#         # intention_priority="知识库优先",
-#         intention_priority="智能匹配优先"
-#     )
-#
-#     # Fake chat history
-#     # chat_history = [{"role": "user", "content": "你为什么给我打电话？你的重点是什么？"}]
-#     chat_history = [{"role": "user", "content": "今天天气不错"}]
-#
-#     result = matcher.llm_infer(chat_history)
-#     print("Inference result:", result)

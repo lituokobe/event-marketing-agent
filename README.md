@@ -72,9 +72,9 @@ pip install -r requirements.txt
 ### 3.2 API Key Configuration
 
 - Register an [Alibaba Cloud](https://www.alibabacloud.com/) account and obtain an API Key for Qwen-Plus, and/or
-- Register an [DeepSeek](https://platform.deepseek.com/) account and obtain an API Key for DeepSeek-Chat, and/or
-- Register an [BigModel](https://bigmodel.cn//) account and obtain an API Key for GLM 4.6.
-- Fill in your preferred API key in `models.models.py`.
+- Register a [DeepSeek](https://platform.deepseek.com/) account and obtain an API Key for DeepSeek-Chat, and/or
+- Register a [BigModel](https://bigmodel.cn//) account and obtain an API Key for GLM 4.6.
+- Fill in your preferred API keys in `models.models.py`.
 
 ``` bash
 ALI_API_KEY=your_aliyun_api_key
@@ -90,17 +90,17 @@ GLM_API_KEY=your_glm_api_key
 
 ### 3.4 Project Data
 
-The design and configuration are supposed to be setup by the business managers in the GUI. They form the data to launch the agent.
+The design and configuration are supposed to be setup by the business managers in the GUI, and act as the data to launch the agent.
 In `data.simulated_data.py`, there are examples:
 
--   `"agent_data"` --- High level configuration of the agent, deciding which features to enable and services to use.
--   `"chatflow_design"` --- Conversation flow configuration including
+-   `agent_data` --- High level configuration of the agent, deciding which features to enable and services to use.
+-   `chatflow_design` --- Conversation flow configuration including
     main flow, nodes, and conditional edges. Users can fully customize
     this to build different customer-service bots
--   `"global_configs"` --- Global configurations on the agent when there are no matching intentions or customers have no replies.
--   `"intentions"` --- Library of regular intentions. Nodes will use specific intentions according to project needs
--   `"knowledge"` --- Knowledge intentions for answering regular customer questions, this is optional.
--   `"knowledge_main_flow"` --- Conversation flow for knowledge intentions, this is optional as well.
+-   `global_configs` --- Global configurations on the agent when there are no matching intentions or customers have no replies.
+-   `intentions` --- Library of regular intentions. Nodes will use specific intentions according to project needs
+-   `knowledge` --- Knowledge intentions for answering regular customer questions, this is optional.
+-   `knowledge_main_flow` --- Conversation flow for knowledge intentions, this is optional as well.
 
 ### 3.5 Run a Test
 

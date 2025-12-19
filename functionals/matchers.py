@@ -1,21 +1,26 @@
+import copy
 from typing import Any, Literal
 from pydantic import create_model, BaseModel, Field
 
 # Keyword approach
+import re
 import ahocorasick
 
 # Semantic approach
 from pymilvus import MilvusClient
 
 from functionals.log_utils import logger_chatflow
-from models.embedding_functions import embed_query
+from functionals.embedding_functions import embed_query
 
 # Models
 # from models.embeddings import qwen3_embedding_model
-from models.models import qwen_llm
+from models.models import qwen_llm, deepseek_llm, glm_llm
 
 # Configuration
 from config.config_setup import NodeConfig
+
+# String assets
+from data.string_asset import docstring_base_raw, priority_map, docstring_tail
 
 """
 3 type of matchers:
@@ -32,34 +37,63 @@ will all return 5 values:
 - inference type: 意图库 or 知识库
 """
 
-# TODO: Create a keyword matching class
+# TODO: Create a keyword matching class, supporting regular expression
 # Below method is using ahocorasick, which provide perfect isolation and faster speed.
 class KeywordMatcher:
     def __init__(self, intentions: list):
         self.intentions = intentions
         self.keyword_to_id_and_type = {}
         self.all_keywords = set()
+        self.regex_patterns = []  # List of tuples: (compiled_regex, original_pattern, intention_id, intention_name)
         self.automaton = None
         if intentions:
             self.load_keywords_from_dict(intentions)
 
-    def load_keywords_from_dict(self, intentions:list):
+    def _is_probably_regex(self, pattern: str) -> bool:
         """
-        Add all the keywords configured by clients to AC machine.
+        Heuristic to detect if a string is intended as a regex.
+        You can adjust this logic if needed (e.g., require explicit flag).
         """
+        regex_meta = {'^', '$', '|', '(', ')', '*', '+', '?', '[', '{', '\\'}
+        return any(char in regex_meta for char in pattern)
+
+    def load_keywords_from_dict(self, intentions: list):
+        self.keyword_to_id_and_type.clear()
+        self.all_keywords.clear()
+        self.regex_patterns.clear()
+
         for intention in intentions:
-            self.add_keyword_list(intention["intention_id"], intention["intention_name"], intention["keywords"])
+            self.add_keyword_list(
+                intention["intention_id"],
+                intention["intention_name"],
+                intention["keywords"]
+            )
         self._build_automaton()
 
     def add_keyword_list(self, intention_id: str, intention_name: str, keywords: list[str] | None):
-        if keywords:
-            for keyword in keywords:
-                keyword = keyword.strip()
-                if keyword and keyword not in self.all_keywords:
+        if not keywords:
+            return
+        for keyword in keywords:
+            keyword = keyword.strip()
+            if not keyword:
+                continue
+            if self._is_probably_regex(keyword):
+                # Store compiled regex + metadata
+                try:
+                    compiled = re.compile(keyword)
+                    self.regex_patterns.append((compiled, keyword, intention_id, intention_name))
+                except re.error:
+                    # Optionally log or skip invalid regex
+                    continue
+            else:
+                if keyword not in self.all_keywords:
                     self.keyword_to_id_and_type[keyword] = (intention_id, intention_name)
                     self.all_keywords.add(keyword)
 
     def _build_automaton(self):
+        if not self.all_keywords:
+            self.automaton = None
+            return
         A = ahocorasick.Automaton()
         for keyword in self.all_keywords:
             A.add_word(keyword, keyword)
@@ -68,35 +102,51 @@ class KeywordMatcher:
 
     def analyze_sentence(self, sentence: str) -> dict[str, dict[str, Any]]:
         result = {}
-        if self.all_keywords: #
-            # Find all matches
+
+        # 1. Match literal keywords using Aho-Corasick
+        if self.automaton:
             for end_index, keyword in self.automaton.iter(sentence):
-                type_id, keyword_type = self.keyword_to_id_and_type[keyword]
-                if type_id not in result:
-                    result[type_id] = {
+                intention_id, keyword_type = self.keyword_to_id_and_type[keyword]
+                if intention_id not in result:
+                    result[intention_id] = {
                         "keyword_type": keyword_type,
                         "count": 0,
                         "keywords": []
                     }
-                result[type_id]["count"] += 1
-                result[type_id]["keywords"].append(keyword)
+                result[intention_id]["count"] += 1
+                result[intention_id]["keywords"].append(keyword)
+
+        # 2. Match regex patterns
+        for compiled_regex, original_pattern, intention_id, keyword_type in self.regex_patterns:
+            # Use finditer to find all non-overlapping matches
+            matches = list(compiled_regex.finditer(sentence))
+            if matches:
+                if intention_id not in result:
+                    result[intention_id] = {
+                        "keyword_type": keyword_type,
+                        "count": 0,
+                        "keywords": []
+                    }
+                count = len(matches)
+                result[intention_id]["count"] += count
+                # Append the original regex pattern once per match (as requested)
+                result[intention_id]["keywords"].extend([original_pattern] * count)
         return result
 
     @staticmethod
-    def get_primary_type(result: dict[str|None, dict[str, Any]|None]) -> tuple[str, str, list[str], int]:
+    def get_primary_type(result: dict[str | None, dict[str, Any] | None]) -> tuple[str, str, list[str], int]:
         if not result:
             e_m = "输入的关键词查询结果为空"
             logger_chatflow.error(e_m)
-            raise ValueError(e_m)
+            return "others", "", [], 0
 
         primary_id = max(result.keys(), key=lambda k: result[k]['count'])
         info = result[primary_id]
         return primary_id, info["keyword_type"], info["keywords"], info["count"]
 
-
 # TODO: Create a semantic matching class
 class SemanticMatcher:
-    def __init__(self, collection_name: str, intention_ids: list, milvus_client: MilvusClient | None = None):
+    def __init__(self, collection_name: str, intention_ids: set|list, milvus_client: MilvusClient | None = None):
         self.collection_name = collection_name
         self.milvus_client = milvus_client
         self.intention_ids = intention_ids
@@ -159,7 +209,7 @@ class LLMInferenceMatcher:
                  knowledge_infer_id: dict,
                  knowledge_infer_description: dict,
                  intention_priority: int):
-        self.config = config
+        self.config = copy.deepcopy(config)
         self.intention_infer_id = {} # dict to store intention inference_type -> type_id
         self.intention_infer_descriptions = {} # dict to store intention inference_type -> description
         for intention in intentions:
@@ -167,7 +217,7 @@ class LLMInferenceMatcher:
             self.intention_infer_descriptions[intention["intention_name"]] = " ".join(intention["llm_description"]) if intention["llm_description"] else ""
 
         # remove the knowledge item that user specifically ask not to include via "nomatch_knowledge_ids"
-        nomatch_knowledge_ids = config.other_config.get("nomatch_knowledge_ids", [])
+        nomatch_knowledge_ids = self.config.other_config.get("nomatch_knowledge_ids", [])
         if not isinstance(nomatch_knowledge_ids, list):
             e_m = f"{config.node_id}-{config.node_name}节点nomatch_knowledge_ids应为列表"
             logger_chatflow.error(e_m)
@@ -188,53 +238,42 @@ class LLMInferenceMatcher:
     def _select_llm(self, llm_name: str):
         if llm_name == "qwen_llm":
             return qwen_llm
-        return qwen_llm
+        elif llm_name == "deepseek_llm":
+            return deepseek_llm
+        elif llm_name == "glm_llm":
+            return glm_llm
+        return deepseek_llm
 
     def _create_inference_llm(self, intention_priority: int):
         """
         Create an LLM with specified inference output.
         """
-        # Prepare the prompt of the LLM
-        docstring_base = [
-            self.llm_role_description, self.llm_background_info,
-            "你需要输出3个值：",
-            "1. 根据对话历史清晰地描述总结最后一次用户输入，然后输出为 input_summary，不超过10个字。",
-            "",
-            "2. 根据用户的输入来判断意图，然后输出为 user_intention。",
-            "用户的意图只能是以下**意图库列表**或**知识库列表**中给定的值。",
-            "**意图库列表** （- 意图：意图说明）"
-        ]
-        # Include the intention descriptions
-        for k, v in self.intention_infer_descriptions.items():
-            docstring_base.append(f"  - {k}：{v}")
+        #TODO: Prepare the prompt of the LLM
+        #Add the role description and background info
+        docstring_base = [self.llm_role_description, self.llm_background_info] + docstring_base_raw
 
-        docstring_base.append("**知识库列表** （- 意图：意图说明）")
-        if self.knowledge_infer_description:
+        #Add intention priority
+        docstring_base = docstring_base + [priority_map[intention_priority]] + priority_map[4:]
+
+        # Include the intention descriptions
+        docstring_base.append("**【意图库列表】**（- 意图：意图说明）")
+        if self.intention_infer_descriptions:
+            for k, v in self.intention_infer_descriptions.items():
+                docstring_base.append(f"  - {k}：{v}")
+        else:
+            docstring_base.append("")
+
+        docstring_base.append("**【知识库列表】**（- 意图：意图说明）")
+        if self.knowledge_infer_description: # if knowledge exists
             for k, v in self.knowledge_infer_description.items():
                 docstring_base.append(f"  - {k}：{v}")
+        else: # if knowledge doesn't exist, append an empty string as a blank row later
+            docstring_base.append("")
 
-        priority_map = [
-            "", # 1知识库优先 2回答分支优先 3只能匹配优先
-            "请牢记两个列表的使用顺序：首先使用**知识库列表**判别用户的意图，并将意图输出为 user_intention。如果无法判别，则使用**意图库列表**判别用户的意图，并将意图输出为 user_intention",
-            "请牢记两个列表的使用顺序：首先使用**意图库列表**判别用户的意图，并将意图输出为 user_intention。如果无法判别，则使用**知识库列表**判别用户的意图，并将意图输出为 user_intention",
-            "同时使用**知识库列表**和**意图库列表**判别用户的意图，不分先后，并将意图输出为 user_intention"
-        ]
-
-        docstring_tail = [
-            "如果用户的意图不属于两个列表中的任何意图，或者用户没有任何输入，输出 user_intention 为 '其他'。",
-            "请一定要调用这个工具，并输出指定值。",
-            "你只能输出最合适的唯一值，不能输出两个或多个。",
-            "",
-            "3. 将判断意图的所使用的列表输出为 inference_type。",
-            "如果是使用**意图库列表**判断，输出 inference_type 为'意图库'；",
-            "如果是使用**知识库判断**判断，输出 inference_type 为'知识库'；",
-            "如果没有判断出意图，即用户的意图不属于意图库和知识库列表中的任何意图，或者用户没有任何输入，输出 inference_type 为'无'。",
-        ]
-
-        docstring = "\n".join(docstring_base + [priority_map[intention_priority]] + docstring_tail)
-        # print(f"当前节点：{self.config.node_id}-{self.config.node_name}\n 以下是大模型提示词 \n {docstring}")
+        # Combine all the strings in to docstring as prompt
+        docstring = "\n".join(docstring_base + docstring_tail)
+        # print(f"{self.config.node_id}-{self.config.node_name}节点的大模型提示词 \n{docstring}")
         # print()
-
         # Assemble the prompt based user's preference of intention priority
         all_intentions = list(self.intention_infer_id.keys()) + list(self.knowledge_infer_id.keys()) + ["其他"]
 
@@ -249,7 +288,7 @@ class LLMInferenceMatcher:
 
         return self.llm_runnable.bind_tools([InferenceModel])
 
-    def llm_infer(self, chat_history: list[dict|None]) -> tuple[str, str, str, str]:
+    def llm_infer(self, chat_history: list[dict|None]) -> tuple[str, str, str, str, int]:
         """
         Infer the user intention from the user input.
         """
@@ -258,21 +297,31 @@ class LLMInferenceMatcher:
             logger_chatflow.error(e_m)
             raise RuntimeError(e_m)
 
-        user_intention, input_summary, inference_type = "其他", "无", "无"
+        # Initialize default values
+        user_intention, input_summary, inference_type, token_used = "其他", "无", "无", 0
 
         try:
             resp = self.llm_runnable.invoke(chat_history)
+            # Get the tokens consumed per round of conversation including the preconfigured doc string, full chat history, AI reply, etc.
+            token_used = int(resp.response_metadata.get("token_usage", {}).get("total_tokens", 0))
             if resp.tool_calls:
+                print("大模型调用工具")
                 args = resp.tool_calls[0]["args"]
                 user_intention = args.get("user_intention", "其他")
                 input_summary = args.get("input_summary", "无")
                 inference_type = args.get("inference_type", "无")
+                print(f"user_intention: {user_intention}, inference_type: {inference_type}, "
+                      f"input_summary: {input_summary}")
+            else:
+                print("大模型没有调用工具")
         except Exception as e:
             logger_chatflow.error("LLM推理调用异常：%s", {e})
 
         if inference_type == "意图库":
-            return self.intention_infer_id.get(user_intention, "others"), user_intention, input_summary, inference_type
+            return (self.intention_infer_id.get(user_intention, "others"), user_intention,
+                    input_summary, inference_type, token_used)
         elif inference_type == "知识库":
-            return self.knowledge_infer_id.get(user_intention, "others"), user_intention, input_summary, inference_type
+            return (self.knowledge_infer_id.get(user_intention, "others"), user_intention,
+                    input_summary, inference_type, token_used)
         else:
-            return "others", user_intention, input_summary, inference_type
+            return "others", user_intention, input_summary, inference_type, token_used

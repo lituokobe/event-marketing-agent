@@ -1,7 +1,8 @@
 import requests
 
 # TODO: call the embedding service with API
-EMBED_SERVICE_URL = "http://127.0.0.1:8081" # local deployment, port 8081
+EMBED_SERVICE_URL = "http://192.168.0.143:8081" # local deployment, port 8081
+# EMBED_SERVICE_URL = "http://127.0.0.1:8083" # also deployed on the server, port 8083. Need to map local port to the server.
 
 def embed_query(text: str) -> list[float]:
     resp = requests.post(f"{EMBED_SERVICE_URL}/embed", json={"input": text})

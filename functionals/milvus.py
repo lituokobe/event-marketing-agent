@@ -2,7 +2,7 @@ import hashlib
 from pymilvus import MilvusClient, MilvusException
 from pymilvus.milvus_client import IndexParams
 from functionals.log_utils import logger_chatflow
-from models.embedding_functions import embed_query
+from functionals.embedding_functions import embed_query
 # from models.embeddings import qwen3_embedding_model
 
 class LaunchMilvus:

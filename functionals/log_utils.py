@@ -1,20 +1,15 @@
 import logging
 import datetime
 import os
-from pathlib import Path
+from data.paths import LOG_PATH
 
-# Get project folder dir
-current_file = Path(__file__).resolve()
-project_dir = current_file.parent.parent
-
-# Create the ./logs folder if it doesn't exist
-log_dir = project_dir / "logs"
-os.makedirs(log_dir, exist_ok=True)
+# Create log folder if it doesn't exist
+os.makedirs(LOG_PATH, exist_ok=True)
 
 # Generate a timestamp for the log filename
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-chatflow_log_filename = os.path.join(log_dir, f"chatflow_{timestamp}.log")
+chatflow_log_filename = os.path.join(LOG_PATH, f"chatflow_{timestamp}.log")
 
 logging.basicConfig(
     level=logging.INFO,

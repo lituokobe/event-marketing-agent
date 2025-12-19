@@ -1,93 +1,137 @@
 from functionals.log_utils import logger_chatflow
 from functionals.matchers import KeywordMatcher, SemanticMatcher
 
-
 # Combine the intention keyword matcher and the knowledge keyword matcher based on user's preference of intention_priority
-def integrated_keywords_matcher(user_input:str,
-                                intention_priority:int,
-                                keyword_matcher:KeywordMatcher,
-                                knowledge_keyword_matcher:KeywordMatcher):
-    """
-    Infer user intention based on integrated keyword matching.
-    Priority can be '回答分支优先', '知识库优先', or '智能匹配优先'.
-    Returns: (type_id, type_name, keywords, count, inference_type)
-    """
-    type_id, type_name, keywords, count, inference_type = "", "", [], 0, "无"
+class IntegratedKeywordsMatcher:
+    def __init__(self,
+                 intention_priority:int,
+                 keyword_matcher:KeywordMatcher,
+                 knowledge_keyword_matcher:KeywordMatcher):
+        self.keyword_matcher = keyword_matcher
+        self.knowledge_keyword_matcher = knowledge_keyword_matcher
+        if intention_priority == 2:
+            self._match_strategy = self._match_intention_first
+        elif intention_priority == 1:
+            self._match_strategy = self._match_knowledge_first
+        elif intention_priority == 3:
+            self._match_strategy = self._match_integrated
+        else:
+            e_m = "优先选择仅能为‘1-知识库优先’，‘2-回答分支优先’或‘3-智能匹配优先’"
+            logger_chatflow.error(e_m)
+            raise ValueError(e_m)
+
+    def match(self, user_input:str):
+        """
+            Infer user intention based on integrated keyword matching.
+            Returns: (type_id, type_name, keywords, count, inference_type)
+            """
+        return self._match_strategy(user_input)
 
     # Define a function to match the user input with inference type output
-    def try_match(matcher: KeywordMatcher, inference_label: str):
+    def _try_match(self, matcher: KeywordMatcher, inference_label: str, user_input: str):
         result = matcher.analyze_sentence(user_input)
         if result:
-            return (*matcher.get_primary_type(result), inference_label)
+            type_id, type_name, keywords, count = matcher.get_primary_type(result)
+            return type_id, type_name, keywords, count, inference_label
         return None
 
-    if intention_priority == 2:
-        match = try_match(keyword_matcher, "意图库") or try_match(knowledge_keyword_matcher, "知识库")
-    elif intention_priority == 1:
-        match = try_match(knowledge_keyword_matcher, "知识库") or try_match(keyword_matcher, "意图库")
-    elif intention_priority == 3:
-        intention_result = keyword_matcher.analyze_sentence(user_input)
-        knowledge_result = knowledge_keyword_matcher.analyze_sentence(user_input)
-        integrated_result = intention_result | knowledge_result if intention_result or knowledge_result else {}
+    def _match_intention_first(self, user_input: str):
+        match = self._try_match(self.keyword_matcher, "意图库", user_input)
+        if match:
+            return match
+        return (self._try_match(self.knowledge_keyword_matcher, "知识库", user_input)
+                or ("", "", [], 0, "无"))
 
-        if integrated_result:
-            type_id, type_name, keywords, count = keyword_matcher.get_primary_type(integrated_result)
-            inference_type = "知识库" if type_id in knowledge_result else "意图库"
-            return type_id, type_name, keywords, count, inference_type
-        match = None
-    else:# If there is no active intentions
-        e_m = "优先选择仅能为‘知识库优先’，‘回答分支优先’或‘智能匹配优先’"
-        logger_chatflow.error(e_m)
-        raise ValueError(e_m)
-    if match:
-        type_id, type_name, keywords, count, inference_type = match
-    return type_id, type_name, keywords, count, inference_type
+    def _match_knowledge_first(self, user_input: str):
+        match = self._try_match(self.knowledge_keyword_matcher, "知识库", user_input)
+        if match:
+            return match
+        return (self._try_match(self.keyword_matcher, "意图库", user_input) or
+                ("", "", [], 0, "无"))
 
-# Combine the intention semantic matcher and the knowledge semantic matcher based on user's preference of intention_priority
-def integrated_semantic_matcher(user_input:str,
-                                nlp_threshold:float,
-                                intention_priority: int,
-                                semantic_matcher:SemanticMatcher,
-                                knowledge_semantic_matcher:SemanticMatcher):
-    """
-    Infer user intention using semantic similarity.
-    Priority can be '回答分支优先', '知识库优先', or '智能匹配优先'.
-    Returns: (type_id, type_name, content, cos_score, inference_type)
-    """
-    type_id, type_name, content, cos_score, inference_type = "", "", "", 0.0, "无"
+    def _match_integrated(self, user_input: str):
+        intention_result = self.keyword_matcher.analyze_sentence(user_input)
+        knowledge_result = self.knowledge_keyword_matcher.analyze_sentence(user_input)
 
-    def try_match(matcher: SemanticMatcher, label: str):
+        if not intention_result and not knowledge_result:
+            return "", "", [], 0, "无"
+
+        integrated_result = intention_result | knowledge_result  # union of matches
+
+        type_id, type_name, keywords, count = self.keyword_matcher.get_primary_type(integrated_result)
+        inference_type = "知识库" if type_id in knowledge_result else "意图库"
+        return type_id, type_name, keywords, count, inference_type
+
+class IntegratedSemanticMatcher:
+    def __init__(self,
+                 nlp_threshold:float,
+                 intention_priority: int,
+                 semantic_matcher:SemanticMatcher,
+                 knowledge_semantic_matcher:SemanticMatcher):
+        self.nlp_threshold = nlp_threshold
+        self.semantic_matcher = semantic_matcher
+        self.knowledge_semantic_matcher = knowledge_semantic_matcher
+
+        if intention_priority == 2:
+            self._match_strategy = self._match_intention_first
+        elif intention_priority == 1:
+            self._match_strategy = self._match_knowledge_first
+        elif intention_priority == 3:
+            self._match_strategy = self._match_integrated
+        else:
+            e_m = "优先选择仅能为‘1-知识库优先’，‘2-回答分支优先’或‘3-智能匹配优先’"
+            logger_chatflow.error(e_m)
+            raise ValueError(e_m)
+
+    def match(self, user_input: str):
+        """
+        Infer user intention using semantic similarity.
+        Returns: (type_id, type_name, content, cos_score, inference_type)
+        """
+        return self._match_strategy(user_input)
+
+    def _try_match(self, matcher: SemanticMatcher, label: str, user_input:str):
         result = matcher.find_most_similar(user_input)
         if result:
             tid, tname, cont, score = result
-            if score > nlp_threshold:
+            if score > self.nlp_threshold:
                 return tid, tname, cont, score, label
         return None
 
-    if intention_priority == 2:
-        match = try_match(semantic_matcher, "意图库") or try_match(knowledge_semantic_matcher, "知识库")
-    elif intention_priority == 1:
-        match = try_match(knowledge_semantic_matcher, "知识库") or try_match(semantic_matcher, "意图库")
-    elif intention_priority == 3:  # If there is no active intentions
-        intention_result = semantic_matcher.find_most_similar(user_input)
-        knowledge_result = knowledge_semantic_matcher.find_most_similar(user_input)
-        # Unpack safely
-        if intention_result and knowledge_result:
-            tid_i, tname_i, cont_i, score_i = intention_result
-            tid_k, tname_k, cont_k, score_k = knowledge_result
+    def _match_intention_first(self, user_input: str):
+        match = self._try_match(self.semantic_matcher, "意图库", user_input)
+        if match:
+            return match
+        return (self._try_match(self.knowledge_semantic_matcher, "知识库", user_input) or
+                ("", "", "", 0.0, "无"))
 
-            if score_i > nlp_threshold and score_i >= score_k:
-                match = (tid_i, tname_i, cont_i, score_i, "意图库")
-            elif score_k > nlp_threshold and score_k > score_i:
-                match = (tid_k, tname_k, cont_k, score_k, "知识库")
-            else:
-                match = None
+    def _match_knowledge_first(self, user_input: str):
+        match = self._try_match(self.knowledge_semantic_matcher, "知识库", user_input)
+        if match:
+            return match
+        return (self._try_match(self.semantic_matcher, "意图库", user_input) or
+                ("", "", "", 0.0, "无"))
+
+    def _match_integrated(self, user_input: str):
+        intention_result = self.semantic_matcher.find_most_similar(user_input)
+        knowledge_result = self.knowledge_semantic_matcher.find_most_similar(user_input)
+
+        score_i = intention_result[3] if intention_result else -1.0
+        score_k = knowledge_result[3] if knowledge_result else -1.0
+
+        # Only consider results above threshold
+        valid_i = intention_result and score_i > self.nlp_threshold
+        valid_k = knowledge_result and score_k > self.nlp_threshold
+
+        if not valid_i and not valid_k:
+            return "", "", "", 0.0, "无"
+
+        # Prefer higher score; in case of tie, intention wins (or adjust as needed)
+        if valid_i and (not valid_k or score_i >= score_k):
+            tid, tname, cont, score = intention_result
+            return tid, tname, cont, score, "意图库"
+        elif valid_k:
+            tid, tname, cont, score = knowledge_result
+            return tid, tname, cont, score, "知识库"
         else:
-            match = None
-    else:
-        e_m = "优先选择仅能为‘知识库优先’，‘回答分支优先’或‘智能匹配优先’"
-        logger_chatflow.error(e_m)
-        raise ValueError(e_m)
-    if match:
-        type_id, type_name, content, cos_score, inference_type = match
-    return type_id, type_name, content, cos_score, inference_type
+            return "", "", "", 0.0, "无"

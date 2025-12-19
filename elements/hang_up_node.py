@@ -7,7 +7,7 @@ def hang_up(state: ChatState) -> dict:
     logger_chatflow.info("系统消息：%s", log_info)
     return {
         "messages": state["messages"],
-        "dialog_state": "hang_up",
+        "dialog_state": None,
         "logs": state["logs"],
         "metadata": state["metadata"]
     }

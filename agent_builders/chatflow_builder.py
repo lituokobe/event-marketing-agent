@@ -1,12 +1,13 @@
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.redis import RedisSaver
-from langgraph.constants import END, START
+from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from config.config_setup import ChatFlowConfig
-from elements.edge_initialization import create_edges, create_knowledge_edges, create_global_edges
+from elements.edge_initialization import create_edges, create_knowledge_edges, create_global_edges, \
+    create_knowledge_transfer_edges
 from elements.hang_up_node import hang_up
 from elements.node_initialization import create_base_node, create_transfer_node, create_knowledge_reply_node, \
-    create_global_reply_node
+    create_global_reply_node, create_knowledge_transfer_node
 from functionals.log_utils import logger_chatflow
 from functionals.matchers import KeywordMatcher, SemanticMatcher
 from functionals.milvus import LaunchMilvus
@@ -91,6 +92,7 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
                 agent_config,
                 knowledge_context,
                 global_config_context,
+                chatflow_design_context,
                 intentions,
                 milvus_client
             )
@@ -104,7 +106,8 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
                 "regular",
                 transfer_node,
                 agent_config,
-                chatflow_design_context
+                chatflow_design_context,
+                knowledge_context
             )
 
         # Create the conditional edges from the base nodes
@@ -126,7 +129,8 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
             create_knowledge_reply_node(
                 graph,
                 knowledge_info,
-                agent_config
+                agent_config,
+                chatflow_design_context
             )
             create_knowledge_edges(
                 graph,
@@ -161,6 +165,7 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
                     agent_config,
                     knowledge_context,
                     global_config_context,
+                    chatflow_design_context,
                     intentions,
                     milvus_client
                 )
@@ -168,12 +173,21 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
             # Create knowledge transfer nodes
             transfer_nodes = main_flow_content.get("transfer_nodes", [])
             for transfer_node in transfer_nodes:
-                create_transfer_node(
+                create_knowledge_transfer_node(
                     graph,
                     main_flow,
                     "knowledge",
                     transfer_node,
                     agent_config,
+                    chatflow_design_context
+                )
+
+            # Create conditional edges from these transfer nodes
+            for transfer_node in transfer_nodes:
+                create_knowledge_transfer_edges(
+                    graph,
+                    main_flow,
+                    transfer_node,
                     chatflow_design_context
                 )
 
@@ -194,7 +208,8 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
         create_global_reply_node(
             graph,
             global_config,
-            agent_config
+            agent_config,
+            chatflow_design_context
         )
         # Create the conditional edges from knowledge reply nodes
         create_global_edges(

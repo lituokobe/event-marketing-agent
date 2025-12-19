@@ -1,17 +1,17 @@
 agent_data = {
-  "enable_nlp": 1,
-  "nlp_threshold": 0.8,
-  "intention_priority": 3,
+  "enable_nlp": 1, # 1-enabled, 0-disabled
+  "nlp_threshold": 0.8,# threshold for semantic similarity match
+  "intention_priority": 3, # 1-prioritize regular intention 2-prioritize knowledge intention 3-smatch matching
 
-  "use_llm": 1,
-  "llm_name": "qwen_llm",
-  "llm_threshold": 3,
-  "llm_context_rounds": 2,
-  "llm_role_description": "你是一个专业的家装平台的电话营销专员，你的任务是获取上海可能有装修意向的客户",
-  "llm_background_info":  "你现在正在沟通的都是可能会有装修需求的人，请尽量引导客户加微信",
+  "use_llm": 1, # 1-enabled, 0-disabled
+  "llm_name": "deepseek_llm", #"glm_llm", #"qwen_llm",
+  "llm_threshold": 3, #minimum length of user input to trigger LLM if use_llm is enabled
+  "llm_context_rounds": 2, # number of rounds of LLM context
+  "llm_role_description": "你是一个专业的家装平台的电话营销专员，你的任务是获取上海可能有装修意向的客户", # Role description for LLM, part of the prompts
+  "llm_background_info": "你现在正在沟通的都是可能会有装修需求的人，请尽量引导客户参加即将举办的展会。", # Background info for LLM, part of the prompts
 
-  "vector_db_url": "http://127.0.0.1:19530",
-  "collection_name" : "home_reno111"
+  "vector_db_url": "http://127.0.0.1:19530", # Milvus server URL
+  "collection_name" : "home_reno_test" # Milvus collection name
 }
 
 chatflow_design = [
@@ -27,9 +27,9 @@ chatflow_design = [
           "node_name": "开场白",
           "reply_content_info": [{
               "dialog_id":"dialog_BN1",
-              "content":"喂您好，（停顿2秒）我是${公司}的客服，近期我们针对${小区}业主举办了一个关于老房子翻新，毛坯房设计，和局部改动的实景样板房体验展，如果您近期或者明年有装修计划的话，都可以到现场免费的咨询了解一下",
+              "content":"喂您好，我是${公司}的客服，近期我们针对${小区}业主举办了一个关于装修、翻新、设计，和局部改动的实景样板房体验展，如果您近期或者明年有装修计划的话，都可以到现场免费的咨询了解一下",
               "variate":{
-                "${公司}":{"content_type":2,"dynamic_var_set_type":1,"value":"巨峰科技","var_is_save":0},
+                "${公司}":{"content_type":2,"dynamic_var_set_type":1,"value":"保利发展集团","var_is_save":0},
                 "${小区}":{"content_type":2,"dynamic_var_set_type":1,"value":"汤臣一品","var_is_save":0}
               }
           }],
@@ -38,19 +38,22 @@ chatflow_design = [
               "branch_id": "IB001",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":7,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB002",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             },
             {
               "branch_id": "IB003",
               "branch_type": "CUSTOMER",
               "branch_name": "解释开场白",
-              "intention_ids": ["I006"]
+              "branch_sort":1,
+              "intention_ids": ["I006", "I010"]
             }
           ],
           "other_config": {
@@ -79,13 +82,15 @@ chatflow_design = [
               "branch_id": "IB004",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":4,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB005",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -104,7 +109,7 @@ chatflow_design = [
           "node_name": "首次挽回",
           "reply_content_info": [{
               "dialog_id":"dialog_BN3",
-              "content": "咱们现在不考虑也可以先过来了解一下目前装修市场的人工材料的费用。可以避免后期装修的一些猫腻和水分。现场时有最新风格的实景样板房可以免费参观体验，如果您家里近两年可能有装修的想法都可以先过来参观了解一下的。",
+              "content": "咱们现在不考虑也可以先过来了解一下目前装修市场的人工材料的费用。可以避免后期装修的一些麻烦。现场时有最新风格的实景样板房可以免费参观体验，如果您家里近两年可能有装修的想法都可以先过来参观了解一下的。",
               "variate":{}
           }],
           "intention_branches": [
@@ -112,13 +117,29 @@ chatflow_design = [
               "branch_id": "IB006",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB007",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
+            },
+            {
+              "branch_id": "IB007_1",
+              "branch_type": "DEFAULT",
+              "branch_name": "默认",
+              "branch_sort":3,
+              "intention_ids": []
+            },
+            {
+              "branch_id": "IB007_2",
+              "branch_type": "NO_REPLY",
+              "branch_name": "客户无应答",
+              "branch_sort":4,
+              "intention_ids": []
             }
           ],
           "other_config": {
@@ -145,13 +166,15 @@ chatflow_design = [
               "branch_id": "IB008",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":4,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB009",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -171,7 +194,7 @@ chatflow_design = [
           "node_id": "TN1",
           "node_name": "肯定",
           "reply_content_info": [],
-          "action": 3,
+          "action": 3, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": "MF2",
           "other_config": {
               "intention_tag": "Other_config_TN1",
@@ -184,7 +207,7 @@ chatflow_design = [
           "node_id": "TN2",
           "node_name": "挽回成功",
           "reply_content_info": [],
-          "action": 3,
+          "action": 3, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": "MF3",
           "other_config": {
               "intention_tag": "Other_config_TN2",
@@ -201,7 +224,7 @@ chatflow_design = [
               "content": "那不好意思打扰您了，以后我们有其他优惠活动再跟您取得联系，好吧？祝您生活愉快，再见。",
               "variate":{}
           }],
-          "action": 1,
+          "action": 1, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN3",
@@ -236,7 +259,9 @@ chatflow_design = [
           "node_name": "首次挽回",
           "route_map": {
             "IB006": "BN4",
-            "IB007": "TN2"
+            "IB007": "TN2",
+            "IB007_1": "TN2",
+            "IB007_2": "TN2",
           },
           "enable_logging": True
         },
@@ -262,23 +287,37 @@ chatflow_design = [
         {
           "node_id": "BN5",
           "node_name": "活动介绍",
-          "reply_content_info": [{
-              "dialog_id":"dialog_BN5",
-              "content": "本次展会现场直接还原了在建工地样板间和本年度最新风格的整体实景样板房，对未来装修非常有借鉴意义。同时特邀嘉宾还将奉献精彩纷呈的表演，一展巨星风采。您看是不是来免费体验一下。",
-              "variate":{}
-          }],
+          "reply_content_info": [
+              {
+                  "dialog_id":"dialog_BN5_1",
+                  "content": "本次展会现场直接还原了在建工地样板间和本年度最新风格的整体实景样板房，对未来装修非常有借鉴意义。同时特邀嘉宾还将奉献精彩纷呈的表演，一展巨星风采。您看是不是来免费体验一下。",
+                  "variate":{}
+              },
+              {
+                  "dialog_id":"dialog_BN5_2",
+                  "content": "这是一次非常精彩的的的展会。现场直接还原了在建工地样板间和本年度最新风格的整体实景样板房，对未来装修非常有借鉴意义。同时特邀嘉宾还将奉献精彩纷呈的表演，一展巨星风采。您绝对应该来体验一下！",
+                  "variate":{}
+              },
+              {
+                  "dialog_id":"dialog_BN5_3",
+                  "content": "这场展会对未来装修非常有借鉴意义！现场直接还原了在建工地样板间和本年度最新风格的整体实景样板房，同时特邀嘉宾还将奉献精彩纷呈的表演，一展巨星风采。您不来太可惜了！",
+                  "variate":{}
+              },
+          ],
           "intention_branches": [
             {
               "branch_id": "IB010",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB011",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -297,7 +336,7 @@ chatflow_design = [
           "node_name": "活动介绍资料发送挽回",
           "reply_content_info": [{
               "dialog_id": "dialog_BN6",
-              "content": "不管您来不来，如果近一年内有装修需求，我们都可以免费提供两本以上针对上海业主的装修宝典给您，一本是总结了近十年内装修业主的心得体会和装修猫腻，另一本是目前市面上热门的主辅材的品牌型号价格表。稍后让我们的家装顾问和您联系取人具体情况，您看可以吗？",
+              "content": "不管您来不来，如果近一年内有装修需求，我们都可以免费提供两本以上针对上海业主的装修宝典给您，一本是总结了近十年内装修业主的心得体会，另一本是目前市面上热门的主辅材的品牌型号价格表。稍后让我们的家装顾问和您联系取人具体情况，您看可以吗？",
               "variate":{}
           }],
           "intention_branches": [
@@ -305,13 +344,15 @@ chatflow_design = [
               "branch_id": "IB012",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB013",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -332,12 +373,12 @@ chatflow_design = [
           "node_name": "活动介绍沟通成功",
           "reply_content_info": [{
               "dialog_id": "dialog_TN4",
-              "content": "您刚才说${客户输入},太棒了，我真替您感到高兴!",
+              "content": "您刚才说${客户输入}，太棒了，我真替您感到高兴!",
               "variate":{
                 "${客户输入}":{"content_type":2,"dynamic_var_set_type":2,"value":"","var_is_save":0}
               }
           }],
-          "action": 2,
+          "action": 2, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN4",
@@ -354,7 +395,7 @@ chatflow_design = [
               "content": "那好吧，以后我们有其他优惠活动再跟您联系。",
               "variate":{}
           }],
-          "action": 1,
+          "action": 1, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN5",
@@ -367,7 +408,7 @@ chatflow_design = [
           "node_id": "TN6",
           "node_name": "活动介绍挽回成功",
           "reply_content_info": [],
-          "action": 3,
+          "action": 3, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": "MF3",
           "other_config": {
               "intention_tag": "Other_config_TN6",
@@ -419,13 +460,15 @@ chatflow_design = [
               "branch_id": "IB014",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB015",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -444,7 +487,7 @@ chatflow_design = [
           "node_name": "资料发送再次挽回",
           "reply_content_info": [{
               "dialog_id": "dialog_BN8",
-              "content": "您真的不需要吗？这部家装圣经畅销海内外150个国家，被翻译成30多种语言，是联合国认定的非物质文化遗产。希望您再考虑一下。",
+              "content": "您真的不需要吗？这部家装圣经畅销海内外30个国家，被翻译成10多种语言，是业内的权威著作。希望您再考虑一下。",
               "variate":{}
           }],
           "intention_branches": [
@@ -452,13 +495,15 @@ chatflow_design = [
               "branch_id": "IB016",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB017",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -482,7 +527,7 @@ chatflow_design = [
               "content": "Wonderful! 稍后我们的家装顾问会和您电话联系，确认具体情况，请您保持手机畅通。祝您生活愉快，再见",
               "variate":{}
           }],
-          "action": 1,
+          "action": 1, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN7",
@@ -496,10 +541,10 @@ chatflow_design = [
           "node_name": "发资料客户拒绝",
           "reply_content_info": [{
               "dialog_id": "dialog_TN8",
-              "content": "真的太遗憾了，为您错过一次阅读家装圣经的机会而感到惋惜，Adios!",
+              "content": "真的太遗憾了，如果您以后有相关的打算，也可以联系我们。",
               "variate":{}
           }],
-          "action": 1,
+          "action": 1, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN8",
@@ -551,13 +596,15 @@ chatflow_design = [
               "branch_id": "IB018",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB019",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -578,10 +625,10 @@ chatflow_design = [
           "node_name": "肯定",
           "reply_content_info": [{
               "dialog_id": "dialog_TN9",
-              "content": "非常好！这是兜底询问的主流程。你在这个位置被挽回成功了，简直是个奇迹。",
+              "content": "感谢您的回复，我很高兴能够继续为您讲解。",
               "variate":{}
           }],
-          "action": 3,
+          "action": 3, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": "MF3",
           "other_config": {
               "intention_tag": "Other_config_TN9",
@@ -598,7 +645,7 @@ chatflow_design = [
               "content": "不好意思，打扰您了，我们有缘再会!",
               "variate":{}
           }],
-          "action": 2,
+          "action": 2, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN10",
@@ -637,7 +684,7 @@ chatflow_design = [
               "content": "嗯嗯，稍后我们的家装顾问会和您电话联系，确认具体情况，请您保持手机畅通。祝您生活愉快，再见",
               "variate":{}
           }],
-          "action": 1,
+          "action": 2, # 1挂断 2跳转下一主线流程 3跳转指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN11",
@@ -655,36 +702,46 @@ chatflow_design = [
 
 global_configs = [
   {
-    "context_type": 1,
+    "context_type": 1, # 1客户无应答模块 2ai未识别模块 3噪音处理模块
     "answer": [
       {
         "reply_content_info": [{
               "dialog_id":"dialog_G1_1",
-              "content":"你怎么不说话，说话呀",
+              "content":"您能听清我说话吗？",
               "variate":{}
           }],
-        "action": 1,
-        "next": None,
+        "action": 1, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       },
       {
         "reply_content_info": [{
               "dialog_id":"dialog_G1_2",
-              "content":"你不说话我挂了昂",
+              "content":"不好意思，您没有听清吗？",
               "variate":{}
           }],
-        "action": 2,
-        "next": None,
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": -1, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       },
       {
         "reply_content_info": [{
               "dialog_id":"dialog_G1_3",
-              "content":"你不说话我就再重复一遍！",
+              "content":"如果您没听清的话，我可以再重复一遍。",
               "variate":{}
           }],
-        "action": 3,
-        "next": -2,
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": -2, # -1原主线节点 -2原主线流程  3指定主线流程
+        "master_process_id": None
+      },
+      {
+        "reply_content_info": [{
+              "dialog_id":"dialog_G1_4",
+              "content":"不好意思，打扰了。",
+              "variate":{}
+          }],
+        "action": 2, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       }
     ],
@@ -693,42 +750,40 @@ global_configs = [
     "enable_logging": True
   },
   {
-    "context_type": 2,
+    "context_type": 2, # 1客户无应答模块 2ai未识别模块 3噪音处理模块
     "answer": [
       {
         "reply_content_info": [{
-              "dialog_id":"dialog_G2",
-              "content":"您竟然说${客户输入}，真的太出乎我意料了！",
+              "dialog_id":"dialog_G2_1",
+              "content":"您是在说${客户输入}吗？",
               "variate":{
                 "${客户输入}":{"content_type":2,"dynamic_var_set_type":2,"value":"","var_is_save":0}
               }
           }],
-        "action": 3,
-        "next": 3,
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": 3, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": "MF4"
       },
       {
         "reply_content_info": [{
-              "dialog_id":"dialog_G2",
-              "content":"您竟然说${客户输入}，真的太出乎我意料了！",
+              "dialog_id":"dialog_G2_2",
+              "content":"您刚才是在说${客户输入}吗，我想确认一下。",
               "variate":{
                 "${客户输入}":{"content_type":2,"dynamic_var_set_type":2,"value":"","var_is_save":0}
               }
           }],
-        "action": 3,
-        "next": -1,
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": -1, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       },
       {
         "reply_content_info": [{
-              "dialog_id":"dialog_G2",
-              "content":"您竟然说${客户输入}，真的太出乎我意料了！",
-              "variate":{
-                "${客户输入}":{"content_type":2,"dynamic_var_set_type":2,"value":"","var_is_save":0}
-              }
+              "dialog_id":"dialog_G2_3",
+              "content":"不好意思，您说的这个情况我不太了解。",
+              "variate":{}
           }],
-        "action": 3,
-        "next": -2,
+        "action": 1, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       }
     ],
@@ -766,10 +821,7 @@ intentions = [
     "intention_id": "I003",
     "intention_name": "客户拒绝",
     "keywords": [
-      "先不用", "不可以", "不了解", "算了吧", "给我介绍没有用",
-      "目前不需要", "不用介绍", "暂时不需要", "没需要", "没这人",
-      "不了解了", "没有这个意向", "我没有钱", "不打算", "不研究",
-      "先不了解", "用不着"
+      "^不是", "再见$", "(牛|狗|猪)", "没(.*)欲望", "(\w+)先生"
     ],
     "semantic":  [
       "不要加我的微信", "这个我不需要",
@@ -895,7 +947,7 @@ intentions = [
     ],
     "llm_description": ["用户没有时间"]
   },
-   {
+  {
     "intention_id": "I009",
     "intention_name": "发资料",
     "keywords": [
@@ -918,6 +970,18 @@ intentions = [
       "资料发我微信", "你给我寄一份吧"
     ],
     "llm_description": ["用户要求把资料发过来"]
+  },
+  {
+    "intention_id": "I010",
+    "intention_name": "很可爱",
+    "keywords": [
+      "我很可爱", "我很帅", "我很漂亮", "我是万人迷"
+    ],
+    "semantic": [
+      "我好可爱", "我好帅", "我好漂亮", "你见过比我更可爱的吗", "还有人比我更可爱吗",
+      "还有人比我更帅吗", "还有人比我更漂亮吗", "我是最可爱的", "我是最帅的", "我是最漂亮的"
+    ],
+    "llm_description": ["用户表示自己很可爱"]
   }
 ]
 
@@ -931,16 +995,16 @@ knowledge = [
     ],
     "semantic": ["没听懂你做什么的", "你简单说下就可以了", "你说重点的", "你简单说说就行", "你快点说完"],
     "llm_description": ["用户要求讲重点"],
-    "answer_type": 1,
-    "answer": [
+    "answer_type": 1, #1单轮回答 2多轮回答
+    "answer": [ # 单轮回答时是话术json, 多轮回答是工作流id的字符串
       {
         "reply_content_info": [{
               "dialog_id":"dialog_K001",
               "content":"不好意思呀 因为我这边是公司新来的业务员 可能对一些业务细节还不太清楚 我稍后安排公司的家装顾问 让他帮您详细介绍一下可以吗?",
               "variate":{}
           }],
-        "action": 1,
-        "next": None,
+        "action": 1, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       }
     ],
@@ -965,17 +1029,37 @@ knowledge = [
       "你叫什么名字", "你名字叫啥", "怎么称呼你", "请问你贵姓", "怎么称呼", "怎么称呼您"
     ],
     "llm_description": ["用户询问姓名"],
-    "answer_type": 1,
-    "answer": [
+    "answer_type": 1, #1单轮回答 2多轮回答
+    "answer": [ # 单轮回答时是话术json, 多轮回答是工作流id的字符串
       {
         "reply_content_info": [{
-              "dialog_id":"dialog_K002",
+              "dialog_id":"dialog_K002_1",
               "content":"您叫我小杜就可以了 我一会发个短信到您手机上 上面有我的信息的 后面如果您有不清楚的 随时联系我就可以了",
               "variate":{}
           }],
-        "action": 3,
-        "next": -1,
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": -1, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
+      },
+      {
+        "reply_content_info": [{
+              "dialog_id":"dialog_K002_2",
+              "content":"我的名字叫小杜。",
+              "variate":{}
+          }],
+        "action": 1, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
+        "master_process_id": None
+      },
+      {
+        "reply_content_info": [{
+              "dialog_id":"dialog_K002_3",
+              "content":"我是小杜，很高兴与您通话。",
+              "variate":{}
+          }],
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": 3, # -1原主线节点 -2原主线流程  3指定主线流程
+        "master_process_id": "MF1"
       }
     ],
     "other_config": {
@@ -984,7 +1068,7 @@ knowledge = [
         "wait_time": "3.5",
         "intention_tag": "0",
         "no_asr": 0,
-        "match_num": 2
+        "match_num": 6
     },
     "enable_logging": True
   },
@@ -1003,16 +1087,16 @@ knowledge = [
       "谁给你的我的电话", "我手机号码你哪来的", "你是从哪搞到我手机号"
     ],
     "llm_description": ["客户问你怎么知道我的号码的"],
-    "answer_type": 1,
-    "answer": [
+    "answer_type": 1, #1单轮回答 2多轮回答
+    "answer": [ # 单轮回答时是话术json, 多轮回答是工作流id的字符串
       {
         "reply_content_info": [{
               "dialog_id":"dialog_K003",
               "content":"咱们这边是不显示您个人信息的，我们是针对整个上海业主做一个活动通知。",
               "variate":{}
           }],
-        "action": 3,
-        "next": -2,
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": -2, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       }
     ],
@@ -1039,12 +1123,16 @@ knowledge = [
       "是关于什么的展览", "有哪些展品", "展览上有什么优惠活动", "展会是展示什么东西的", "展会有哪些内容", "展示什么东西"
     ],
     "llm_description": ["客户问展会内容"],
-    "answer_type": 1,
-    "answer": [
+    "answer_type": 1, #1单轮回答 2多轮回答
+    "answer": [ # 单轮回答时是话术json, 多轮回答是工作流id的字符串
       {
-        "reply_content_info": [],
-        "action": 3,
-        "next": 3,
+        "reply_content_info": [{
+              "dialog_id": "dialog_K004",
+              "content": "",
+              "variate":{}
+          }],
+        "action": 3, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": 3, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": "MF2"
       }
     ],
@@ -1054,7 +1142,7 @@ knowledge = [
         "wait_time": "3.5",
         "intention_tag": "0",
         "no_asr": 0,
-        "match_num": 3
+        "match_num": 10
     },
     "enable_logging": True
   },
@@ -1077,16 +1165,16 @@ knowledge = [
       "换有经验的跟我说", "你不知道就换人跟我说", "让你们老板跟我说", "我不想跟机器人说话", "你不会介绍就换个人行吗"
     ],
     "llm_description": ["用户要求换一个真人或者联系经理来服务"],
-    "answer_type": 1,
-    "answer": [
+    "answer_type": 1, #1单轮回答 2多轮回答
+    "answer": [ # 单轮回答时是话术json, 多轮回答是工作流id的字符串
       {
         "reply_content_info": [{
               "dialog_id": "dialog_K005",
               "content": "不好意思，稍后将由我们具体负责相关业务的同事来联系您。祝您生活愉快，再见！",
               "variate":{}
           }],
-        "action": 2,
-        "next": None,
+        "action": 2, # 1等待用户回复  2挂断  3跳转主流程,
+        "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
         "master_process_id": None
       }
     ],
@@ -1114,15 +1202,15 @@ knowledge = [
       "我来加你微信", "直接加我微信", "你微信号是多少", "发我个短信", "有资料吗发给我看看", "你加个微信，加个微信去聊"
     ],
     "llm_description": ["客户主动要加微信，或者主动要在微信发资料给他"],
-    "answer_type": 2,
-    "answer": "MF_wechat",
+    "answer_type": 2, #1单轮回答 2多轮回答
+    "answer": "MF_wechat", # 单轮回答时是话术json, 多轮回答是工作流id的字符串
     "other_config": {
         "is_break": 0,
         "break_time": "2.0",
         "wait_time": "3.5",
         "intention_tag": "0",
         "no_asr": 0,
-        "match_num": 2
+        "match_num": 10
     },
     "enable_logging": True
   }
@@ -1138,25 +1226,39 @@ knowledge_main_flow = [
         {
           "node_id": "BN_wechat1",
           "node_name": "加微信",
-          "reply_content_info": [{
-              "dialog_id":"dialog_BN_wechat1",
-              "content":"真的吗? 您刚才说${客户输入}，好高兴可以加您的微信。我马上加，有什么不清楚的地方，可以随时联系我。",
-              "variate":{
-                "${客户输入}":{"content_type":2,"dynamic_var_set_type":2,"value":"","var_is_save":0}
+          "reply_content_info": [
+              {
+                  "dialog_id":"dialog_BN_wechat1_1",
+                  "content":"真的吗? 您刚才说${客户输入}，很高兴可以加您的微信。",
+                  "variate":{
+                      "${客户输入}":{"content_type":2,"dynamic_var_set_type":2,"value":"","var_is_save":0}
+                  }
+              },
+              {
+                  "dialog_id":"dialog_BN_wechat1_2",
+                  "content":"谢谢，我会马上加您的微信。",
+                  "variate":{}
+              },
+              {
+                  "dialog_id": "dialog_BN_wechat1_3",
+                  "content": "等下我加您的微信。如果您有任何问题，都可以咨询我。",
+                  "variate": {}
               }
-          }],
+          ],
           "intention_branches": [
             {
               "branch_id": "IB_wechat1",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
-              "intention_ids": ["I003", "I008"]
+              "branch_sort":1,
+              "intention_ids": ["I003", "I008", "I010"]
             },
             {
               "branch_id": "IB_wechat2",
               "branch_type": "SURE",
               "branch_name": "肯定",
-              "intention_ids": ["I007", "I009"]
+              "branch_sort":2,
+              "intention_ids": ["I007", "I009", "I010"]
             }
           ],
           "other_config": {
@@ -1175,7 +1277,7 @@ knowledge_main_flow = [
           "node_name": "再次请求加微信",
           "reply_content_info": [{
               "dialog_id":"dialog_BN_wechat2",
-              "content":"怎么又不加了？害羞了吗，你个小可爱。",
+              "content":"如果您现在不方便添加微信的话，您可以关注我们的公众号了解一下。",
               "variate":{}
           }],
           "intention_branches": [
@@ -1183,12 +1285,14 @@ knowledge_main_flow = [
               "branch_id": "IB_wechat3",
               "branch_type": "REJECT",
               "branch_name": "拒绝",
+              "branch_sort":1,
               "intention_ids": ["I003", "I008"]
             },
             {
               "branch_id": "IB_wechat4",
               "branch_type": "SURE",
               "branch_name": "肯定",
+              "branch_sort":2,
               "intention_ids": ["I007", "I009"]
             }
           ],
@@ -1205,6 +1309,24 @@ knowledge_main_flow = [
         }
       ],
       "transfer_nodes": [
+         {
+          "node_id": "TN_wechat3",
+          "node_name": "加微信挽留成功",
+          "reply_content_info": [{
+              "dialog_id":"dialog_TN_wechat3",
+              "content":"感谢您的支持，我稍后添加。",
+              "variate":{}
+          }],
+          "action": 1, # 1等待用户回复 2挂断 3跳转主流程
+          "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
+          "master_process_id": None,
+          "other_config": {
+              "intention_tag": "Other_config_TN_wechat2",
+			  "no_asr": 0,
+			  "nomatch_knowledge_ids": []
+          },
+          "enable_logging": True
+        },
         {
           "node_id": "TN_wechat2",
           "node_name": "加微信肯定",
@@ -1213,7 +1335,8 @@ knowledge_main_flow = [
               "content":"我已发送添加邀请，您注意通过一下，祝您生活愉快，再见!",
               "variate":{}
           }],
-          "action": 1,
+          "action": 2, # 1等待用户回复 2挂断 3跳转主流程
+          "next": None, # -1原主线节点 -2原主线流程  3指定主线流程
           "master_process_id": None,
           "other_config": {
               "intention_tag": "Other_config_TN_wechat2",
@@ -1227,11 +1350,12 @@ knowledge_main_flow = [
           "node_name": "加微信客户拒绝",
           "reply_content_info": [{
               "dialog_id":"dialog_TN_wechat1",
-              "content":"那不好意思，我就先不加您微信了，拜拜了您嘞",
+              "content":"那不好意思，我就先不加您微信了，谢谢，再见。",
               "variate":{}
           }],
-          "action": 1,
-          "master_process_id": None,
+          "action": 3, # 1等待用户回复 2挂断 3跳转主流程
+          "next": 3, # -1原主线节点 -2原主线流程  3指定主线流程
+          "master_process_id": "MF3",
           "other_config": {
               "intention_tag": "Other_config_TN_wechat1",
 			  "no_asr": 0,
@@ -1255,7 +1379,7 @@ knowledge_main_flow = [
           "node_name": "再次请求加微信",
           "route_map": {
             "IB_wechat3": "TN_wechat1",
-            "IB_wechat4": "TN_wechat2"
+            "IB_wechat4": "TN_wechat3"
           },
           "enable_logging": True
         }

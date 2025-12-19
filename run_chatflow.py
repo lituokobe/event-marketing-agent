@@ -18,9 +18,15 @@ def main(call_id: str, fresh_start: bool = True):
         global_configs,
         intentions
     )
-    # Initialize conv config
+    # Initialize conv_config
     conv_config = {"configurable": {"thread_id": call_id}}
-
+    """
+    "configurable" and "thread_id" are a convention used by LangGraph’s checkpointer to identify a conversation.
+    In the dict of "configurable", more customized keys like "user_id" can be added.
+    We use plain dict to play as conv_config. RunnableConfig is the built-in class to serve this purpose.
+    But for the annotation of the node's __call__ function, we need to annotate config: RunnableConfig or keep it unannotated.
+    Annotating it as dict or ANY will lead to error, even if it is a dict.
+    """
     # Redis
     settings = DBSetting()
     redis_pool = redis.ConnectionPool(
@@ -49,6 +55,7 @@ def main(call_id: str, fresh_start: bool = True):
 
     # Step 1: Use empty input to trigger welcome message
     state = chatflow.invoke({"messages": [HumanMessage(content="")]}, config=conv_config)
+    # LangGraph accepts dict as config, and will automatically convert it to a RunnableConfig internally if needed.
 
     # Print initial assistant message
     messages = state.get("messages")
@@ -63,7 +70,7 @@ def main(call_id: str, fresh_start: bool = True):
     while True:
         # Get user input
         user_input = input("用户：").strip()
-        if user_input.lower() == "挂电话":
+        if user_input == "挂电话":
             log_info = "用户已挂断电话"
             logger_chatflow.info("系统消息：%s", log_info)
             break

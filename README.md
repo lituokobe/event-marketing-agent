@@ -1,5 +1,5 @@
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 # Generator for AI Customer Service Agent
-
 This a GUI software that allows business managers to freely design customer service 
 agents with pre-defined conversation flows, using intuitive nodes and edges.
 The agent's engagement with customers is powered by large language models (LLMs) and 

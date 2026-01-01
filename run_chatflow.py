@@ -1,10 +1,14 @@
+import json
 import redis
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.redis import RedisSaver
 from agent_builders.chatflow_builder import build_chatflow
 from config.config_setup import ChatFlowConfig
 from config.db_setting import DBSetting
-from data.simulated_data import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
+from data.simulated_data_lt import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
+# from data.simulated_data_lt_simplified import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
+# from data.simulated_data import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
+# from data.simulated_data_xyp20251222 import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
 from functionals.log_utils import logger_chatflow
 
 # The function to run the chatflow
@@ -101,13 +105,15 @@ def main(call_id: str, fresh_start: bool = True):
 if __name__ == "__main__":
     state = main("test_call")
 
-    # # Export state
-    # def convert(obj):
-    #     if isinstance(obj, set):
-    #         return list(obj)
-    #     return str(obj)  # fallback for other non-serializable types
-    # with open("chat_state.json", "w", encoding="utf-8") as f:
-    #     json.dump(state, f, ensure_ascii=False, indent=2, default=convert)
+    # Export state
+    export_state = False
+    if export_state:
+        def convert(obj):
+            if isinstance(obj, set):
+                return list(obj)
+            return str(obj)  # fallback for other non-serializable types
+        with open("chat_state.json", "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2, default=convert)
 
     # Print final messages
     print("=== 智能客服已下线 ===")

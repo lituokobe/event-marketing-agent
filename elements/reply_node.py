@@ -214,7 +214,10 @@ class ReplyNode:
                     }
 
             # Create assistant_logic_title
-            assistant_logic_title = f"【主线流程】：{self.config.main_flow_name}、{self.config.node_name}"
+            if self.config.main_flow_id in self.knowledge_main_flow_ids:
+                assistant_logic_title = f"【知识库流程】：{self.config.main_flow_name}、{self.config.node_name}"
+            else:
+                assistant_logic_title = f"【主线流程】：{self.config.main_flow_name}、{self.config.node_name}"
 
             updated_metadata = metadata + [{
                 **previous_metadata,
@@ -616,8 +619,8 @@ class ReplyNodeKT:
                  chatflow_design_context: ChatflowDesignContext,
                  # logic to decide next node:
                  action: int,
-                 next_:int|None,
-                 master_process_id:str|None
+                 next_:int|str|None,
+                 # master_process_id:str|None
                  ):
         self.config = config
 
@@ -630,8 +633,8 @@ class ReplyNodeKT:
         # Get the arguments that will decide next node
         self.action = action
         self.next_ = next_
-        self.master_process_id = master_process_id
-        if self.action not in {1, 2, 3}:
+        # self.master_process_id = master_process_id
+        if self.action not in {0, 1, 3}:
             e_m = f"知识库转换节点{self.config.node_id}-{self.config.node_name}执行动作无效"
             logger_chatflow.error(e_m)
             raise ValueError(e_m)
@@ -699,16 +702,16 @@ class ReplyNodeKT:
         #Get the list of all the states in this chat
         dialog_state = state.get("dialog_state", [])
 
-        if self.action == 1:  # 等待用户回复
+        if self.action == 0:  # 等待用户回复
             next_state = "pop" # remove the state of this global config, we will get back to the previous node by default
-        elif self.action == 2:  # 挂断
+        elif self.action == 1:  # 挂断
             next_state = "hang_up"
         else: # self.action == 3 跳转主线流程
-            if self.next_ not in {-1, -2, 3}:  # -1-原主线节点 -2-原主线流程 3-指定主线流程
-                e_m = f"会话{thread_id}，节点{self.config.node_id}-{self.config.node_name}，指定主线流程无效"
-                logger_chatflow.error(e_m)
-                next_state = "hang_up"
-            elif self.next_ == -1 : # 原主线节点
+            # if self.next_ not in {-1, -2, 3}:  # -1-原主线节点 -2-原主线流程 3-指定主线流程
+            #     e_m = f"会话{thread_id}，节点{self.config.node_id}-{self.config.node_name}，指定主线流程无效"
+            #     logger_chatflow.error(e_m)
+            #     next_state = "hang_up"
+            if self.next_ == -1 : # 原主线节点
                 last_mf_node = None
                 for item in reversed(dialog_state):
                     # Update last_intention_node if not already found
@@ -729,11 +732,15 @@ class ReplyNodeKT:
                         break
                 last_mf_starting_node = last_mf_starting_node or self.starting_node_id
                 next_state = f"{last_mf_starting_node}_reply" # go to the first node of the main flow
-            else: # 3- 指定主线流程
-                if self.master_process_id:
-                    next_state = update_target(self.master_process_id, self.starting_node_lookup) # go to the specified node/main flow
-                else:
-                    next_state = "hang_up"
+            # else:
+                # if self.master_process_id:
+                #     next_state = update_target(self.master_process_id, self.starting_node_lookup) # go to the specified node/main flow
+                # else:
+                #     next_state = "hang_up"
+            elif self.next_ in self.starting_node_lookup: # others - 指定主线流程
+                next_state = update_target(self.next_, self.starting_node_lookup)  # go to the specified node/main flow
+            else:
+                next_state = "hang_up"
 
         if next_state == "hang_up":
             self.end_call = True

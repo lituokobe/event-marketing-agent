@@ -26,8 +26,8 @@ class KnowledgeContext(BaseModel):
     knowledge: list = Field(..., description="Knowledge data")
     main_flow: list = Field(..., description="Knowledge main flow data")
     main_flow_ids: set = Field(..., description="Knowledge main flow ids")
-    infer_id: dict = Field(..., description="Mapping: knowledge name -> ID")
-    infer_description: dict = Field(..., description="Mapping: knowledge name -> description")
+    infer_name: dict = Field(..., description="Mapping: knowledge ID -> name")
+    infer_description: dict = Field(..., description="Mapping: knowledge ID -> name - description")
     type_lookup: dict = Field(..., description="Mapping: knowledge ID -> knowledge type")
     match_lookup: dict = Field(..., description="Mapping: knowledge ID -> knowledge match num")
     multi_round_lookup: dict = Field(..., description="Mapping: knowledge ID -> multi_round_main_flow")
@@ -105,8 +105,8 @@ class ChatFlowConfig(BaseModel):
 
         # TODO: 2. Use knowledge and knowledge main flows to prepare knowledge context
         knowledge_main_flow_ids = set() # set to store all knowledge main flow ids
-        knowledge_infer_id = {} # dict to store knowledge intention_name -> intention_id
-        knowledge_infer_description = {} # dict to store knowledge intention_name -> description
+        knowledge_infer_name = {} # dict to store knowledge intention_id -> intention_name
+        knowledge_infer_description = {} # dict to store knowledge intention_id -> intention_name - description
         knowledge_type_lookup = {} # dict to store knowledge intention_id -> knowledge_type
         knowledge_match_lookup = {} # dict to store knowledge intention_id -> knowledge_match_num
         knowledge_multi_round_lookup = {} # dict to store knowledge intention_id -> multi_round_main_flow
@@ -123,10 +123,10 @@ class ChatFlowConfig(BaseModel):
 
         if knowledge:
             for item in knowledge:
-                knowledge_infer_id[item.get("intention_name")] = item.get("intention_id")
-                knowledge_infer_description[item.get("intention_name")] = (
-                    " ".join(item.get("llm_description"))) if item.get("llm_description") else ""
-                knowledge_type_lookup[item.get("intention_id")] = item.get("knowledge_type")
+                knowledge_infer_name[item["intention_id"]] = item["intention_name"]
+                intention_description = " ".join(item["llm_description"]) if item["llm_description"] else "无意图说明"
+                knowledge_infer_description[item["intention_id"]] = str(item["intention_name"]) + " - " + intention_description
+                knowledge_type_lookup[item["intention_id"]] = item["knowledge_type"]
 
                 match_num = item.get("other_config", {}).get("match_num")
                 if not isinstance(match_num, int) or match_num < 1:
@@ -144,7 +144,7 @@ class ChatFlowConfig(BaseModel):
             knowledge=knowledge,
             main_flow=knowledge_main_flow,
             main_flow_ids=knowledge_main_flow_ids,
-            infer_id=knowledge_infer_id,
+            infer_name=knowledge_infer_name,
             infer_description=knowledge_infer_description,
             type_lookup=knowledge_type_lookup,
             match_lookup=knowledge_match_lookup,

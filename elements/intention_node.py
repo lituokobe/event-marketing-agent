@@ -3,13 +3,13 @@ import time
 from langchain_core.runnables import RunnableConfig
 from pymilvus import MilvusClient
 from config.config_setup import NodeConfig, KnowledgeContext, GlobalConfigContext, ChatflowDesignContext
-from data.string_asset import infer_tool_str
+from data.string_asset import infer_tool_str, no_next_main_flow_hang_up_str
 from functionals.matchers import KeywordMatcher, SemanticMatcher, LLMInferenceMatcher
 from functionals.integrated_matchers import IntegratedSemanticMatcher, IntegratedKeywordsMatcher
 from functionals.log_utils import logger_chatflow
 from functionals.state import ChatState
 from functionals.utils import get_last_user_message, intention_filter, next_main_flow, node_starting_logging, \
-    node_ending_logging
+    node_ending_logging, get_logs_from_last_user
 
 #TODO: The class of the intention node
 class IntentionNode:
@@ -123,7 +123,7 @@ class IntentionNode:
         if self.config.agent_config.use_llm == 1:
             self.llm_matcher = LLMInferenceMatcher(self.config, # include the "nomatch_knowledge_ids" argument
                                                    filtered_intentions,
-                                                   knowledge_context.infer_id,
+                                                   knowledge_context.infer_name,
                                                    knowledge_context.infer_description,
                                                    self.config.agent_config.intention_priority)
 
@@ -202,7 +202,7 @@ class IntentionNode:
             # LLM only takes chat history: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
             # Keep the last N rounds of chat history specified by the client
             chat_history = messages[-max(1, self.config.agent_config.llm_context_rounds * 2):]
-            type_id, type_name, input_summary, infer_type, token_used = self.llm_matcher.llm_infer(chat_history)
+            type_id, type_name, input_summary, infer_type, token_used = self.llm_matcher.llm_infer(chat_history, user_input)
 
             if type_name != "其他":
                 if infer_type == "意图库":
@@ -574,7 +574,7 @@ class IntentionNode:
                         "total_token_used": total_token_used,
                         "time_cost": round(time.time() - prev_time, 3)
                     }
-                # if doesn't match anyway
+                # if it doesn't match anyway
                 else:
                     if self.default_in_node:  # no reply configuration at node level
                         branch_type = "DEFAULT"
@@ -671,6 +671,35 @@ class IntentionNode:
 
         updated_logs = logs + [log_info]
 
+        #TODO: update metadata
+        #Sometimes intention node can also lead to hang_up. So we still need to update metadata in this scenario
+        updated_metadata: list = state.get("metadata", [])
+        if next_state == "hang_up":
+            previous_metadata: dict = updated_metadata[-1] if updated_metadata else {}
+            previous_logic: dict = previous_metadata.get("logic", {})
+            previous_reply_round:int = previous_metadata.get("reply_round", 0)
+            updated_metadata.append({
+                **previous_metadata,
+                "end_call":True,
+                "user_input":user_input,
+                "reply_round":previous_reply_round+1,
+                "content":[{
+                        "dialog_id": "hang_up",
+                        "text": no_next_main_flow_hang_up_str,
+                        "variate": {},
+                        "assistant_logic_title": f"已到最后一个流程：{self.config.main_flow_name}，通话将挂断",
+                        "other_config": {}
+                    }],
+                "logic":{
+                    **previous_logic,
+                    "user_logic_title": {
+                        "匹配到": log_info.get("match_to", ""),
+                        "匹配方式": f"【{log_info.get('infer_tool', '')}】"
+                    },
+                    "detail": get_logs_from_last_user(updated_logs)
+                },
+            })
+
         if self.config.enable_logging:
             logger_chatflow.info(
                 "本节点最新log：%s",
@@ -680,6 +709,7 @@ class IntentionNode:
                 )
             )
             node_ending_logging(self.config, thread_id)
+
         return {
             "messages": messages,
             "dialog_state": next_state,

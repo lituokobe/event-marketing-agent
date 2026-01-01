@@ -190,7 +190,7 @@ def create_knowledge_transfer_node(
                              # logic to decide next node:
                              action=transfer_node.get("action", 1),
                              next_=transfer_node.get("next", None),
-                             master_process_id= transfer_node.get("master_process_id", None)
+                             # master_process_id= transfer_node.get("master_process_id", None)
                              )
     """
     ReplyNodeKT requires next node action. But this node may involve dynamic information from previous

@@ -1,17 +1,15 @@
-# Retrieve the last message from the user in the stack of messages
 import copy
-
 from config.config_setup import NodeConfig
 from functionals.log_utils import logger_chatflow
 
-def get_last_user_message(messages: list[dict]) -> str:
+# Retrieve the last message from the user in the stack of messages
+def get_last_user_message(messages: list) -> str:
     for msg in reversed(messages):
         if msg.__class__.__name__ == "HumanMessage":
             return msg.content
-        # if msg["role"] == "user":
-        #     return msg["content"]
     return ""
 
+# Identify if the last message is from AI with real content
 def last_message_is_ai(messages: list) -> bool:
     if messages:
         last_message = messages[-1]
@@ -128,7 +126,7 @@ def update_target(target: str, lookup: dict[str, str]) -> str:
         target = lookup[target] # Convert target node id when switching main flow
     return f"{target}_reply"
 
-# find next main flow ids in the chatflow design
+# Find next main flow ids in the chatflow design
 def next_main_flow(main_flow_id:str, sort_lookup:dict) -> str|None:
     """
     Get the next main flow ID in sequence.

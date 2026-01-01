@@ -1,0 +1,26 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  ai-services:
+    build: .
+    container_name: ai-services # omit container_name for future scaling
+    restart: unless-stopped
+    ports:
+      - "5001:5001"  # ai_gateway_service
+      - "5002:5002"  # ai_service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      # Mount logs directory (ensure host dir exists with correct permissions)
+      - ./logs:/app/logs:rw
+      # Optional: Mount data directory
+      - ./data:/app/data:rw
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://127.0.0.1:5001/gateway/health && curl -f http://127.0.0.1:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+    user: "1000:1000"  # Match UID from Dockerfile for volume permissions

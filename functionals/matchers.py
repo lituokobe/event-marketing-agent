@@ -1,26 +1,20 @@
-import copy
-from typing import Any, Literal
-from pydantic import create_model, BaseModel, Field
+from typing import Any
+import re
+from functionals.log_utils import logger_chatflow
+from config.config_setup import NodeConfig
 
 # Keyword approach
-import re
 import ahocorasick
 
 # Semantic approach
 from pymilvus import MilvusClient
-
-from functionals.log_utils import logger_chatflow
 from functionals.embedding_functions import embed_query
 
-# Models
-# from models.embeddings import qwen3_embedding_model
-from models.models import qwen_llm, deepseek_llm, glm_llm
-
-# Configuration
-from config.config_setup import NodeConfig
-
-# String assets
+# LLM approach
+from models.llm_models import qwen_llm, deepseek_llm, glm_llm, local_llm
 from data.string_asset import docstring_base_raw, priority_map, docstring_tail
+from langchain_core.messages import HumanMessage
+import ast
 
 """
 3 type of matchers:
@@ -32,9 +26,10 @@ KeywordMatcher.get_primary_type(), SemanticMatcher.find_most_similar(), LLMInfer
 will all return 5 values:
 - user's intention id
 - user's intention type
+- inference type: 意图库, 知识库, 无
 - extra info 1
-- extra info 2
-- inference type: 意图库 or 知识库
+- extra info 2 (Optional)
+
 """
 
 # TODO: Create a keyword matching class, supporting regular expression
@@ -159,14 +154,12 @@ class SemanticMatcher:
             tuple: (intention_id, intention_name, phrase, similarity_score)
             Always returns a valid tuple even when no match is found
         """
-        DEFAULT_RESULT = ("无", "无", "无", 0.0)
+        DEFAULT_RESULT = ("", "", "", 0.0)
         if not self.intention_ids:
             return DEFAULT_RESULT
 
         try:
             # Generate query embedding
-            # query_emb = qwen3_embedding_model.embed_documents(sentence)
-            # User embed_documents from embedding_service-embedding_model
             query_emb = embed_query(sentence)
             if hasattr(query_emb, 'tolist'):
                 query_emb = query_emb.tolist()
@@ -193,8 +186,8 @@ class SemanticMatcher:
             hit = results[0][0] # hit is a Milvus hit object, similar to dict
             entity = hit.get("entity", {})
 
-            return (entity.get("intention_id", "无"), entity.get("intention_name", "无"),
-                entity.get("phrase", "无"), hit.get("distance", 0.0))
+            return (entity.get("intention_id", ""), entity.get("intention_name", ""),
+                entity.get("phrase", ""), hit.get("distance", 0.0))
 
         except Exception as e:
             logger_chatflow.error(f"'{sentence}'查询失败: {str(e)}", exc_info=True)
@@ -205,16 +198,18 @@ class SemanticMatcher:
 class LLMInferenceMatcher:
     def __init__(self,
                  config: NodeConfig,
-                 intentions:list[dict],
-                 knowledge_infer_id: dict,
+                 intentions: list,
+                 knowledge_infer_name: dict,
                  knowledge_infer_description: dict,
                  intention_priority: int):
-        self.config = copy.deepcopy(config)
-        self.intention_infer_id = {} # dict to store intention inference_type -> type_id
-        self.intention_infer_descriptions = {} # dict to store intention inference_type -> description
-        for intention in intentions:
-            self.intention_infer_id[intention["intention_name"]] = intention["intention_id"]
-            self.intention_infer_descriptions[intention["intention_name"]] = " ".join(intention["llm_description"]) if intention["llm_description"] else ""
+        self.config = config
+        self.intention_infer_name = {} # dict: intention_id -> intention_name
+        self.intention_infer_descriptions = {} # dict: intention_id -> intention_name - intention_description
+        if intentions:
+            for intention in intentions:
+                self.intention_infer_name[intention["intention_id"]] = intention["intention_name"]
+                intention_description = " ".join(intention["llm_description"]) if intention["llm_description"] else "无意图说明"
+                self.intention_infer_descriptions[intention["intention_id"]] = str(intention["intention_name"]) + " - " + intention_description
 
         # remove the knowledge item that user specifically ask not to include via "nomatch_knowledge_ids"
         nomatch_knowledge_ids = self.config.other_config.get("nomatch_knowledge_ids", [])
@@ -222,106 +217,149 @@ class LLMInferenceMatcher:
             e_m = f"{config.node_id}-{config.node_name}节点nomatch_knowledge_ids应为列表"
             logger_chatflow.error(e_m)
             raise TypeError(e_m)
-        self.knowledge_infer_id = {k:v for k, v in knowledge_infer_id.items() if v not in nomatch_knowledge_ids} # dict to store knowledge inference_type -> type_id
-        self.knowledge_infer_description = {k:v for k, v in knowledge_infer_description.items() if k in self.knowledge_infer_id} # dict to store knowledge inference_type -> description
+        self.knowledge_infer_name = {k:v for k, v in knowledge_infer_name.items() if k not in nomatch_knowledge_ids} # dict to store knowledge intention_id: intention_name
+        self.knowledge_infer_description = {k:v for k, v in knowledge_infer_description.items() if k in self.knowledge_infer_name} # dict to store knowledge intention_id : intention_name - intention_description
 
         # background prompt
-        self.llm_role_description = getattr(config.agent_config, "llm_role_description", "")
-        self.llm_background_info = getattr(config.agent_config, "llm_background_info", "")
+        self.llm_role_description: str = getattr(config.agent_config, "llm_role_description", "")
+        self.llm_background_info: str = getattr(config.agent_config, "llm_background_info", "")
+
+        # prompts
+        self.base_docstring: list = self._create_base_docstring(intention_priority) or []
 
         # select llm runnable
         self.llm_runnable = self._select_llm(config.agent_config.llm_name)
 
-        # bind inference model
-        self.llm_runnable = self._create_inference_llm(intention_priority)
-
     def _select_llm(self, llm_name: str):
         if llm_name == "qwen_llm":
             return qwen_llm
+        elif llm_name == "local_llm":
+            return local_llm
         elif llm_name == "deepseek_llm":
             return deepseek_llm
         elif llm_name == "glm_llm":
             return glm_llm
         return deepseek_llm
 
-    def _create_inference_llm(self, intention_priority: int):
+    def _create_base_docstring(self, intention_priority: int) -> list:
         """
-        Create an LLM with specified inference output.
+        Prepare the base docstring from the LLM
         """
-        #TODO: Prepare the prompt of the LLM
-        #Add the role description and background info
-        docstring_base = [self.llm_role_description, self.llm_background_info] + docstring_base_raw
-
         #Add intention priority
-        docstring_base = docstring_base + [priority_map[intention_priority]] + priority_map[4:]
+        docstring_base = (
+                [
+                    "## === 你的角色描述和背景信息（仅供参考） ===",
+                    self.llm_role_description,
+                    self.llm_background_info,
+                    ""
+                ] +
+                docstring_base_raw +
+                [priority_map[intention_priority]] + priority_map[4:]
+        )
 
         # Include the intention descriptions
-        docstring_base.append("**【意图库列表】**（- 意图：意图说明）")
+        docstring_base.append("**【意图库列表】**（- 意图id : 意图名称 - 意图说明）")
         if self.intention_infer_descriptions:
             for k, v in self.intention_infer_descriptions.items():
-                docstring_base.append(f"  - {k}：{v}")
+                docstring_base.append(f"  - {k} : {v}")
         else:
             docstring_base.append("")
 
-        docstring_base.append("**【知识库列表】**（- 意图：意图说明）")
+        docstring_base.append("")
+        docstring_base.append("**【知识库列表】**（- 意图id : 意图名称 - 意图说明）")
         if self.knowledge_infer_description: # if knowledge exists
             for k, v in self.knowledge_infer_description.items():
-                docstring_base.append(f"  - {k}：{v}")
+                docstring_base.append(f"  - {k} : {v}")
         else: # if knowledge doesn't exist, append an empty string as a blank row later
             docstring_base.append("")
+        docstring_base.append("")
 
-        # Combine all the strings in to docstring as prompt
-        docstring = "\n".join(docstring_base + docstring_tail)
-        # print(f"{self.config.node_id}-{self.config.node_name}节点的大模型提示词 \n{docstring}")
-        # print()
-        # Assemble the prompt based user's preference of intention priority
-        all_intentions = list(self.intention_infer_id.keys()) + list(self.knowledge_infer_id.keys()) + ["其他"]
+        return docstring_base
 
-        InferenceModel = create_model(
-            "InferenceModel",
-            __base__=BaseModel,
-            input_summary=(str, Field(description="描述最后一次用户输入")),
-            user_intention=(Literal[*all_intentions], Field(description="判断用户意图的结果")),
-            inference_type=(Literal["意图库", "知识库", "无"], Field(description="判断用户意图的依据")),
-            __doc__=docstring
-        )
+    def _parse_llm_json_output(self, text: str) -> tuple[str, str]:
+        """
+        Parse LLM output robustly. Always returns (input_summary, intention_id).
+        """
+        text = text.strip()
 
-        return self.llm_runnable.bind_tools([InferenceModel])
+        if text.startswith("```"):
+            text = re.split(r"```(?:json)?", text, maxsplit=1)[-1]
+            text = text.rsplit("```", 1)[0] if "```" in text else text
+        text = text.strip()
 
-    def llm_infer(self, chat_history: list[dict|None]) -> tuple[str, str, str, str, int]:
+        # Try to parse
+        try:
+            data = ast.literal_eval(text)
+            if isinstance(data, dict):
+                summary = str(data.get("input_summary", "无"))[:10]
+                id_ = str(data.get("intention_id", "others"))
+            else:
+                summary, id_ = "无", "others"
+        except Exception as e:
+            logger_chatflow.error("大模型输出解析异常：%s", {e})
+            # Fallback: extract using regex
+            summary_match = re.search(r'[\'"`]input_summary[\'"`]\s*:\s*[\'"`](.*?)[\'"`]', text)
+            summary = summary_match.group(1)[:10] if summary_match else "无"
+
+            id_match = re.search(r'[\'"`]intention_id[\'"`]\s*:\s*[\'"`](.*?)[\'"`]', text)
+            id_ = id_match.group(1) if id_match else "others"
+
+        return summary, id_
+
+    def llm_infer(self, chat_history: list, user_input: str) -> tuple[str, str, str, str, int]:
         """
         Infer the user intention from the user input.
         """
         if not self.llm_runnable:
             e_m = "LLM推理工具未初始化"
             logger_chatflow.error(e_m)
-            raise RuntimeError(e_m)
 
         # Initialize default values
-        user_intention, input_summary, inference_type, token_used = "其他", "无", "无", 0
-
+        intention_id, user_intention, input_summary, inference_type, token_used = (
+            "others", "其他", "无", "无", 0
+        )
         try:
-            resp = self.llm_runnable.invoke(chat_history)
+            # Create prompt of chat history
+            docstring_chat_history = []
+            for msg in chat_history:
+                if msg.__class__.__name__ == "HumanMessage":
+                    docstring_chat_history.append(f"- 【用户】{msg.content}")
+                elif msg.__class__.__name__ == "AIMessage":
+                    ai_message = msg.content
+                    if ai_message:
+                        docstring_chat_history.append(f"- 【智能客服】{ai_message}")
+            docstring_chat_history.append("")
+
+            # Create full prompt
+            full_docstring = (self.base_docstring +
+                              [
+                                  "### **最后一次用户输入**",
+                                  user_input,
+                                  "",
+                                  "### 智能助手和用户的全部对话历史（务必参考）"
+                              ] +
+                              docstring_chat_history +
+                              docstring_tail)
+            full_prompt = "\n".join(full_docstring)
+            print(f"{self.config.node_id}-{self.config.node_name}节点的大模型提示词 \n{full_prompt}")
+            print()
+            # Invoke the llm
+            resp = self.llm_runnable.invoke([HumanMessage(content=full_prompt)])
+
             # Get the tokens consumed per round of conversation including the preconfigured doc string, full chat history, AI reply, etc.
             token_used = int(resp.response_metadata.get("token_usage", {}).get("total_tokens", 0))
-            if resp.tool_calls:
-                print("大模型调用工具")
-                args = resp.tool_calls[0]["args"]
-                user_intention = args.get("user_intention", "其他")
-                input_summary = args.get("input_summary", "无")
-                inference_type = args.get("inference_type", "无")
-                print(f"user_intention: {user_intention}, inference_type: {inference_type}, "
-                      f"input_summary: {input_summary}")
-            else:
-                print("大模型没有调用工具")
+            print(f"大模型回复内容： {resp.content}")
+            input_summary, intention_id = self._parse_llm_json_output(resp.content)
         except Exception as e:
             logger_chatflow.error("LLM推理调用异常：%s", {e})
 
-        if inference_type == "意图库":
-            return (self.intention_infer_id.get(user_intention, "others"), user_intention,
-                    input_summary, inference_type, token_used)
-        elif inference_type == "知识库":
-            return (self.knowledge_infer_id.get(user_intention, "others"), user_intention,
-                    input_summary, inference_type, token_used)
-        else:
-            return "others", user_intention, input_summary, inference_type, token_used
+        if intention_id in self.intention_infer_name:
+            user_intention = self.intention_infer_name[intention_id]
+            inference_type = "意图库"
+        elif intention_id in self.knowledge_infer_name:
+            user_intention = self.knowledge_infer_name[intention_id]
+            inference_type = "知识库"
+
+        print(f"大模型回复处理后内容：intention_id: {intention_id}, user_intention: {user_intention}, "
+              f"input_summary: {input_summary}, inference_type: {inference_type}")
+        return intention_id, user_intention, input_summary, inference_type, token_used

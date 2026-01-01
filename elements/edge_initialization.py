@@ -74,7 +74,6 @@ def create_knowledge_edges(
             if last_state.endswith("_intention"):
                 # this means we are not going to hang_up or any _reply node,
                 # the global config state is deleted, we are going to wait for the user to talk, so we go to END
-                print("We are going to END!")
                 return END # End the flow to wait for user input
             return last_state
 
@@ -111,7 +110,6 @@ def create_knowledge_transfer_edges(
             if last_state.endswith("_intention"):
                 # this means we are not going to hang_up or any _reply node,
                 # the global config state is deleted, we are going to wait for the user to talk, so we go to END
-                print("We are going to END!")
                 return END # End the flow to wait for user input
             return last_state
 
@@ -155,7 +153,6 @@ def create_global_edges(
             if last_state.endswith("_intention"):
                 # this means we are not going to hang_up or any _reply node,
                 # the global config state is deleted, we are going to wait for the user to talk, so we go to END
-                print("We are going to END!")
                 return END # End the flow to wait for user input
             return last_state
 

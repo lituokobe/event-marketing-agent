@@ -1,5 +1,5 @@
 agent_data = {
-    "enable_nlp": 0,
+    "enable_nlp": 1,
     "nlp_threshold": 0.5,
     "intention_priority": 1,
     "use_llm": 1,

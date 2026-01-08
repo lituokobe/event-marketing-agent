@@ -127,7 +127,7 @@ class IntentionNode:
                                                    knowledge_context.infer_description,
                                                    self.config.agent_config.intention_priority)
 
-    def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
+    async def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
         #We need to annotate config: RunnableConfig or keep it unannotated.
         #This is more like to tell LangGraph there is a config input argument, instead of type declaration.
         #Annotating it as dict or ANY will lead to error, even if it is a dict.
@@ -202,7 +202,7 @@ class IntentionNode:
             # LLM only takes chat history: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
             # Keep the last N rounds of chat history specified by the client
             chat_history = messages[-max(1, self.config.agent_config.llm_context_rounds * 2):]
-            type_id, type_name, input_summary, infer_type, token_used = self.llm_matcher.llm_infer(chat_history, user_input)
+            type_id, type_name, input_summary, infer_type, token_used = await self.llm_matcher.llm_infer(chat_history, user_input)
 
             if type_name != "其他":
                 if infer_type == "意图库":
@@ -474,7 +474,7 @@ class IntentionNode:
                 }
             # === Case 4: Semantic Matching ===
             elif self.config.agent_config.enable_nlp == 1:
-                type_id, type_name, content, cos_score, infer_type = self.integrated_semantic_matcher.match(user_input)
+                type_id, type_name, content, cos_score, infer_type = await self.integrated_semantic_matcher.match(user_input)
                 if infer_type == "意图库":
                     branch_id_list = this_node_branches.get(type_id, [])
                     if branch_id_list:

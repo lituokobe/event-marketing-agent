@@ -30,7 +30,7 @@ class ReplyNode:
         if self.next_node_name == "hang_up":
             self.end_call = True
 
-    def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
+    async def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
         #We need to annotate config: RunnableConfig or keep it unannotated.
         #This is more like to tell LangGraph there is a config input argument, instead of type declaration.
         #Annotating it as dict or ANY will lead to error, even if it is a dict.
@@ -315,7 +315,7 @@ class ReplyNodeKGF:
         self.mf_starting_node_ids: set = chatflow_design_context.mf_starting_node_ids # all starting node ids from main flows (excluding knowledge)
         self.starting_node_lookup: dict = chatflow_design_context.starting_node_lookup # main flow id -> starting node id
 
-    def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
+    async def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
         #We need to annotate config: RunnableConfig or keep it unannotated.
         #This is more like to tell LangGraph there is a config input argument, instead of type declaration.
         #Annotating it as dict or ANY will lead to error, even if it is a dict.
@@ -652,7 +652,7 @@ class ReplyNodeKT:
         self.mf_starting_node_ids: set = chatflow_design_context.mf_starting_node_ids # all starting node ids from main flows (excluding knowledge)
         self.starting_node_lookup: dict = chatflow_design_context.starting_node_lookup # main flow id -> starting node id
 
-    def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
+    async def __call__(self, state: ChatState, config: RunnableConfig) -> dict:
         #We need to annotate config: RunnableConfig or keep it unannotated.
         #This is more like to tell LangGraph there is a config input argument, instead of type declaration.
         #Annotating it as dict or ANY will lead to error, even if it is a dict.
@@ -707,10 +707,6 @@ class ReplyNodeKT:
         elif self.action == 1:  # 挂断
             next_state = "hang_up"
         else: # self.action == 3 跳转主线流程
-            # if self.next_ not in {-1, -2, 3}:  # -1-原主线节点 -2-原主线流程 3-指定主线流程
-            #     e_m = f"会话{thread_id}，节点{self.config.node_id}-{self.config.node_name}，指定主线流程无效"
-            #     logger_chatflow.error(e_m)
-            #     next_state = "hang_up"
             if self.next_ == -1 : # 原主线节点
                 last_mf_node = None
                 for item in reversed(dialog_state):
@@ -732,11 +728,6 @@ class ReplyNodeKT:
                         break
                 last_mf_starting_node = last_mf_starting_node or self.starting_node_id
                 next_state = f"{last_mf_starting_node}_reply" # go to the first node of the main flow
-            # else:
-                # if self.master_process_id:
-                #     next_state = update_target(self.master_process_id, self.starting_node_lookup) # go to the specified node/main flow
-                # else:
-                #     next_state = "hang_up"
             elif self.next_ in self.starting_node_lookup: # others - 指定主线流程
                 next_state = update_target(self.next_, self.starting_node_lookup)  # go to the specified node/main flow
             else:

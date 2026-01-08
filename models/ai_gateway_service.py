@@ -137,176 +137,175 @@ def async_initialize_model(model_id, config_data, expire_time):
 
 
 def call_model_service(model_id, backstop_model, user_input, call_id, task_id):
-    result = {
-        'call_id': '692e90d1e2f6a',
-        'content': [{
-            'dialog_id': 'f17aa3e3d9b7a0c6',
-            'other_config': {
-                'break_time': '0.0',
-                'intention_tag': '',
-                'interrupt_knowledge_ids': '',
-                'is_break': 1,
-                'no_asr': 0,
-                'nomatch_knowledge_ids': [],
-                'wait_time': '3.5'
-            },
-            'text': '是这样的，近期在国家会议中心有个免费的家装实景体验展，现场您可以了解到智能家居 ，以及不同的装修风格，您看有没有兴趣来体验一下？',
-            'variate': [],
-            'assistant_logic_title': '【主线流程】:主流程一、开场白',
-        }],
-        'conversation_history_detail': [{
-            'content': [{
-                'dialog_id': '48592a6f42891500',
-                'other_config': {
-                    'break_time': '0.0',
-                    'intention_tag': '',
-                    'interrupt_knowledge_ids': '',
-                    'is_break': 1,
-                    'no_asr': 0,
-                    'nomatch_knowledge_ids': [],
-                    'wait_time': '3.5'
-                },
-                'text': '喂，您好，{{停顿1秒}} 我是福居家博会的客服，近期我们针对保利业主举办了一个关于老房子翻新，毛坯房设计，和局部改动的实景样板房体验展，如果您近期或者明年有装修计划的话，都可以到现场免费的咨询了解一下。',
-                'variate': [],
-                'assistant_logic_title': '【主线流程】:主流程一、开场白',
-            }],
-            'end_call': False,
-            'logic': {
-                'complete_process': [],
-                'detail': [{
-                    'content': '喂，您好，{{停顿1秒}} 我是福居家博会的客服，近期我们针对保利业主举办了一个关于老房子翻新，毛坯房设计，和局部改动的实景样板房体验展，如果您近期或者明年有装修计划的话，都可以到现场免费的咨询了解一下。',
-                    'main_flow_id': '4e7b2f4f637d0baa',
-                    'main_flow_name': '主流程一',
-                    'node_id': 'node-1765344497783-3431',
-                    'node_name': '开场白',
-                    'other_config': {
-                        'break_time': '0.0',
-                        'intention_tag': '',
-                        'interrupt_knowledge_ids': '',
-                        'is_break': 1,
-                        'no_asr': 0,
-                        'nomatch_knowledge_ids': [],
-                        'wait_time': '3.5'
-                    },
-                    'role': 'assistant'
-                }],
-                'user_logic_title': {}
-            },
-            'reply_round': 1,
-            'token_used': 0,
-            'total_token_used': 0,
-            'user_input': '嗨，你好啊'
-        }, {
-            'content': [{
-                'dialog_id': 'f17aa3e3d9b7a0c6',
-                'other_config': {
-                    'break_time': '0.0',
-                    'intention_tag': '',
-                    'interrupt_knowledge_ids': '',
-                    'is_break': 1,
-                    'no_asr': 0,
-                    'nomatch_knowledge_ids': [],
-                    'wait_time': '3.5'
-                },
-                'text': '是这样的，近期在国家会议中心有个免费的家装实景体验展，现场您可以了解到智能家居 ，以及不同的装修风格，您看有没有兴趣来体验一下？',
-                'variate': [],
-                'assistant_logic_title': '【主线流程】:主流程一、普通节点',
-            }],
-            'end_call': False,
-            'logic': {
-                'complete_process': [],
-                'detail': [{
-                    'branch_id': 'd2000e2526034f91a57024bd3cd1bbe9',
-                    'branch_name': '默认',
-                    'branch_type': 'DEFAULT',
-                    'branch_type_count': {'DEFAULT': 1},
-                    'content': '嗨，你好啊',
-                    'infer_tool': '大模型',
-                    'intention_id': '',
-                    'intention_name': '',
-                    'knowledge_match_balance': {},
-                    'knowledge_type': '',
-                    'llm_input_summary': '打招呼',
-                    'main_flow_id': '4e7b2f4f637d0baa',
-                    'main_flow_name': '主流程一',
-                    'match_to': '没有意图命中',
-                    'matching_content': '',
-                    'matching_score': 0.0,
-                    'node_id': 'node-1765344497783-3431',
-                    'node_name': '开场白',
-                    'other_config': {
-                        'break_time': '0.0',
-                        'intention_tag': '',
-                        'interrupt_knowledge_ids': '',
-                        'is_break': 1,
-                        'no_asr': 0,
-                        'nomatch_knowledge_ids': [],
-                        'wait_time': '3.5'
-                    },
-                    'role': 'user',
-                    'time_cost': 10.695,
-                    'token_used': 1118,
-                    'total_token_used': 1118
-                }, {
-                    'branch_id': 'd2000e2526034f91a57024bd3cd1bbe9',
-                    'branch_name': '默认',
-                    'branch_type': 'DEFAULT',
-                    'branch_type_count': {'DEFAULT': 1},
-                    'content': '是这样的，近期在国家会议中心有个免费的家装实景体验展，现场您可以了解到智能家居 ，以及不同的装修风格，您看有没有兴趣来体验一下？',
-                    'infer_tool': '大模型',
-                    'intention_id': '',
-                    'intention_name': '',
-                    'knowledge_match_balance': {},
-                    'knowledge_type': '',
-                    'llm_input_summary': '打招呼',
-                    'main_flow_id': '4e7b2f4f637d0baa',
-                    'main_flow_name': '主流程一',
-                    'match_to': '没有意图命中',
-                    'matching_content': '',
-                    'matching_score': 0.0,
-                    'node_id': 'node-1765344824009-2896',
-                    'node_name': '普通节点',
-                    'other_config': {
-                        'break_time': '0.0',
-                        'intention_tag': '',
-                        'interrupt_knowledge_ids': '',
-                        'is_break': 1,
-                        'no_asr': 0,
-                        'nomatch_knowledge_ids': [],
-                        'wait_time': '3.5'
-                    },
-                    'role': 'assistant',
-                    'time_cost': 10.695,
-                    'token_used': 1118,
-                    'total_token_used': 1118
-                }],
-                'user_logic_title': {'匹配到': '没有意图命中', '匹配方式': '【大模型】'}
-            },
-            'reply_round': 2,
-            'token_used': 1118,
-            'total_token_used': 1118,
-            'user_input': '嗨，你好啊'
-        }],
-        'end_call': False,
-        'model_id': 'bb974aff6714d376',
-        'reply_round': 2,
-        'success': True,
-        'timestamp': '2025-12-15T10:42:02.286231',
-        'token_used': 1118,
-        'total_token_used': 1118
-    }
+    # result = {
+    #     'call_id': '692e90d1e2f6a',
+    #     'content': [{
+    #         'dialog_id': 'f17aa3e3d9b7a0c6',
+    #         'other_config': {
+    #             'break_time': '0.0',
+    #             'intention_tag': '',
+    #             'interrupt_knowledge_ids': '',
+    #             'is_break': 1,
+    #             'no_asr': 0,
+    #             'nomatch_knowledge_ids': [],
+    #             'wait_time': '3.5'
+    #         },
+    #         'text': '是这样的，近期在国家会议中心有个免费的家装实景体验展，现场您可以了解到智能家居 ，以及不同的装修风格，您看有没有兴趣来体验一下？',
+    #         'variate': [],
+    #         'assistant_logic_title': '【主线流程】:主流程一、开场白',
+    #     }],
+    #     'conversation_history_detail': [{
+    #         'content': [{
+    #             'dialog_id': '48592a6f42891500',
+    #             'other_config': {
+    #                 'break_time': '0.0',
+    #                 'intention_tag': '',
+    #                 'interrupt_knowledge_ids': '',
+    #                 'is_break': 1,
+    #                 'no_asr': 0,
+    #                 'nomatch_knowledge_ids': [],
+    #                 'wait_time': '3.5'
+    #             },
+    #             'text': '喂，您好，{{停顿1秒}} 我是福居家博会的客服，近期我们针对保利业主举办了一个关于老房子翻新，毛坯房设计，和局部改动的实景样板房体验展，如果您近期或者明年有装修计划的话，都可以到现场免费的咨询了解一下。',
+    #             'variate': [],
+    #             'assistant_logic_title': '【主线流程】:主流程一、开场白',
+    #         }],
+    #         'end_call': False,
+    #         'logic': {
+    #             'complete_process': [],
+    #             'detail': [{
+    #                 'content': '喂，您好，{{停顿1秒}} 我是福居家博会的客服，近期我们针对保利业主举办了一个关于老房子翻新，毛坯房设计，和局部改动的实景样板房体验展，如果您近期或者明年有装修计划的话，都可以到现场免费的咨询了解一下。',
+    #                 'main_flow_id': '4e7b2f4f637d0baa',
+    #                 'main_flow_name': '主流程一',
+    #                 'node_id': 'node-1765344497783-3431',
+    #                 'node_name': '开场白',
+    #                 'other_config': {
+    #                     'break_time': '0.0',
+    #                     'intention_tag': '',
+    #                     'interrupt_knowledge_ids': '',
+    #                     'is_break': 1,
+    #                     'no_asr': 0,
+    #                     'nomatch_knowledge_ids': [],
+    #                     'wait_time': '3.5'
+    #                 },
+    #                 'role': 'assistant'
+    #             }],
+    #             'user_logic_title': {}
+    #         },
+    #         'reply_round': 1,
+    #         'token_used': 0,
+    #         'total_token_used': 0,
+    #         'user_input': '嗨，你好啊'
+    #     }, {
+    #         'content': [{
+    #             'dialog_id': 'f17aa3e3d9b7a0c6',
+    #             'other_config': {
+    #                 'break_time': '0.0',
+    #                 'intention_tag': '',
+    #                 'interrupt_knowledge_ids': '',
+    #                 'is_break': 1,
+    #                 'no_asr': 0,
+    #                 'nomatch_knowledge_ids': [],
+    #                 'wait_time': '3.5'
+    #             },
+    #             'text': '是这样的，近期在国家会议中心有个免费的家装实景体验展，现场您可以了解到智能家居 ，以及不同的装修风格，您看有没有兴趣来体验一下？',
+    #             'variate': [],
+    #             'assistant_logic_title': '【主线流程】:主流程一、普通节点',
+    #         }],
+    #         'end_call': False,
+    #         'logic': {
+    #             'complete_process': [],
+    #             'detail': [{
+    #                 'branch_id': 'd2000e2526034f91a57024bd3cd1bbe9',
+    #                 'branch_name': '默认',
+    #                 'branch_type': 'DEFAULT',
+    #                 'branch_type_count': {'DEFAULT': 1},
+    #                 'content': '嗨，你好啊',
+    #                 'infer_tool': '大模型',
+    #                 'intention_id': '',
+    #                 'intention_name': '',
+    #                 'knowledge_match_balance': {},
+    #                 'knowledge_type': '',
+    #                 'llm_input_summary': '打招呼',
+    #                 'main_flow_id': '4e7b2f4f637d0baa',
+    #                 'main_flow_name': '主流程一',
+    #                 'match_to': '没有意图命中',
+    #                 'matching_content': '',
+    #                 'matching_score': 0.0,
+    #                 'node_id': 'node-1765344497783-3431',
+    #                 'node_name': '开场白',
+    #                 'other_config': {
+    #                     'break_time': '0.0',
+    #                     'intention_tag': '',
+    #                     'interrupt_knowledge_ids': '',
+    #                     'is_break': 1,
+    #                     'no_asr': 0,
+    #                     'nomatch_knowledge_ids': [],
+    #                     'wait_time': '3.5'
+    #                 },
+    #                 'role': 'user',
+    #                 'time_cost': 10.695,
+    #                 'token_used': 1118,
+    #                 'total_token_used': 1118
+    #             }, {
+    #                 'branch_id': 'd2000e2526034f91a57024bd3cd1bbe9',
+    #                 'branch_name': '默认',
+    #                 'branch_type': 'DEFAULT',
+    #                 'branch_type_count': {'DEFAULT': 1},
+    #                 'content': '是这样的，近期在国家会议中心有个免费的家装实景体验展，现场您可以了解到智能家居 ，以及不同的装修风格，您看有没有兴趣来体验一下？',
+    #                 'infer_tool': '大模型',
+    #                 'intention_id': '',
+    #                 'intention_name': '',
+    #                 'knowledge_match_balance': {},
+    #                 'knowledge_type': '',
+    #                 'llm_input_summary': '打招呼',
+    #                 'main_flow_id': '4e7b2f4f637d0baa',
+    #                 'main_flow_name': '主流程一',
+    #                 'match_to': '没有意图命中',
+    #                 'matching_content': '',
+    #                 'matching_score': 0.0,
+    #                 'node_id': 'node-1765344824009-2896',
+    #                 'node_name': '普通节点',
+    #                 'other_config': {
+    #                     'break_time': '0.0',
+    #                     'intention_tag': '',
+    #                     'interrupt_knowledge_ids': '',
+    #                     'is_break': 1,
+    #                     'no_asr': 0,
+    #                     'nomatch_knowledge_ids': [],
+    #                     'wait_time': '3.5'
+    #                 },
+    #                 'role': 'assistant',
+    #                 'time_cost': 10.695,
+    #                 'token_used': 1118,
+    #                 'total_token_used': 1118
+    #             }],
+    #             'user_logic_title': {'匹配到': '没有意图命中', '匹配方式': '【大模型】'}
+    #         },
+    #         'reply_round': 2,
+    #         'token_used': 1118,
+    #         'total_token_used': 1118,
+    #         'user_input': '嗨，你好啊'
+    #     }],
+    #     'end_call': False,
+    #     'model_id': 'bb974aff6714d376',
+    #     'reply_round': 2,
+    #     'success': True,
+    #     'timestamp': '2025-12-15T10:42:02.286231',
+    #     'token_used': 1118,
+    #     'total_token_used': 1118
+    # }
 
+    # # 现在可以正常访问了
+    # content_list = result['content']
+    # real_model_id = result.get('model_id', 'default_model_id')  # 给一个默认值
+    # end_call = result.get('end_call', False)
+    # conversation_history_detail = result.get('conversation_history_detail', [])
 
-    # 现在可以正常访问了
-    content_list = result['content']
-    real_model_id = result.get('model_id', 'default_model_id')  # 给一个默认值
-    end_call = result.get('end_call', False)
-    conversation_history_detail = result.get('conversation_history_detail', [])
-
-    print(f"real_model_id: {real_model_id}")
-    print(f"end_call: {end_call}")
-    print(f"conversation_history_detail length: {len(conversation_history_detail)}")
-    return content_list, conversation_history_detail, real_model_id, end_call
+    # print(f"real_model_id: {real_model_id}")
+    # print(f"end_call: {end_call}")
+    # print(f"conversation_history_detail length: {len(conversation_history_detail)}")
+    # return content_list, conversation_history_detail, real_model_id, end_call
     """调用AI模型服务生成话术 ，返回(响应, 历史, 实际使用的模型ID)"""
     # 完善响应处理******
 
@@ -410,6 +409,7 @@ def calculate_tts_duration(text, speed=1.0):
 
     return max(1.0, round(total_duration, 2))
 
+
 def calculate_final_timeout(tts_duration, config_wait_time, ai_wait_time):
     """
     计算最终的ASR超时时间
@@ -428,7 +428,7 @@ def calculate_final_timeout(tts_duration, config_wait_time, ai_wait_time):
     else:
         final_timeout = max(tts_based_timeout, config_based_timeout)
         logger.info(f"🎯 使用计算超时时间: {final_timeout}ms")
-    tts_duration = final_timeout + tts_duration * 1000 # TTS时长 + 最终的时间
+    tts_duration = final_timeout + tts_duration * 1000  # TTS时长 + 最终的时间
     return int(final_timeout), int(tts_duration)
 
 
@@ -715,7 +715,14 @@ def process_variable(var_name, variate_data, user_input, phone_info):
     try:
         # 🎯 将变量名包装成${var_name}形式去variate_data中查找
         var_key = f"${{{var_name}}}"
-        var_config = variate_data.get(var_key, {})
+        if isinstance(variate_data, dict):
+            var_config = variate_data.get(var_key, {})
+        elif isinstance(variate_data, list):
+            # 如果是列表，可以转换为字典或按索引访问
+            # 根据你的业务逻辑处理
+            var_config = {}  # 或者处理列表逻辑
+        else:
+            var_config = {}
         content_type = var_config.get('content_type', 1)  # 1自定义变量，2动态变量
         dynamic_var_set_type = var_config.get('dynamic_var_set_type', 0)  # 0未开启，1常量赋值，2原话采集
         var_is_save = var_config.get('var_is_save', 0)  # 是否保存变量
@@ -807,6 +814,7 @@ def contains_chinese(text):
     pattern = re.compile(r'[\u4e00-\u9fff]')
     return bool(pattern.search(str(text)))
 
+
 def get_audio_duration(file_path, length):
     """获取音频文件时长"""
     try:
@@ -841,6 +849,7 @@ def create_simple_tts_content(text, other_config):
         'other_config': other_config
     }
 
+
 @app.route('/gateway/health', methods=['GET'])
 def health_check():
     """健康检查"""
@@ -872,7 +881,7 @@ def health_check():
 @app.route('/gateway/model/start', methods=['POST'])
 def start_model():
     """初始化模型接口 - 异步版本"""
-    
+
     data = request.json
     model_id = data.get('model_id')
     config_data = data.get('config_data', {})
@@ -886,19 +895,19 @@ def start_model():
         }), 400
 
     logger.info(f"🚀 接收模型启动请求 - 模型: {model_id}, 仅延期: {only_delay}")
-    #重新激活 先删除再激活
+    # 重新激活 先删除再激活
     # 重新激活模式：先删除再激活
     if is_again:
         logger.info(f"🔄 重新激活模式 - 先删除模型: {model_id}")
         try:
             response = requests.post(
-                f"{AI_MODEL_SERVICE_URL}/model/again", 
+                f"{AI_MODEL_SERVICE_URL}/model/again",
                 json={
                     'model_id': model_id,
                 },
                 timeout=10
             )
-            
+
             # 检查删除是否成功
             if response.status_code == 200 and response.json().get('success'):
                 # 删除成功后，继续执行下面的逻辑
@@ -914,7 +923,7 @@ def start_model():
                 }), 500
 
         except Exception as e:
-           
+
             return jsonify({
                 'success': False,
                 'message': f'模型 {model_id} 删除失败: {str(e)}',
@@ -977,7 +986,7 @@ def conversation():
     # 🆕 获取所有ASR配置参数
     not_answer_wait_seconds = data.get('not_answer_wait_seconds', 0)
 
-    check_noise = data.get('check_noise', 0) # 噪音检测 是不是nlp 需要用的
+    check_noise = data.get('check_noise', 0)  # 噪音检测 是不是nlp 需要用的
 
     if not task_id:
         return jsonify({
@@ -995,7 +1004,6 @@ def conversation():
         logger.error(f"🔴 Redis连接异常: {str(e)}")
         # 🎯 降级处理：使用空的历史记录继续处理
         existing_conversation = None
-
 
     if existing_conversation:
         conversation_data = json.loads(existing_conversation)
@@ -1098,7 +1106,8 @@ def conversation():
         mixed_content.pop('other_config', None)
         # 🎯 计算最终超时时间（使用final_text或mixed_content的总时长）
         ai_wait_time = other_config.get('wait_time') if other_config else None
-        final_asr_timeout, final_tts_duration = calculate_final_timeout(tts_duration, not_answer_wait_seconds, ai_wait_time)
+        final_asr_timeout, final_tts_duration = calculate_final_timeout(tts_duration, not_answer_wait_seconds,
+                                                                        ai_wait_time)
         # 动态ASR参数
         dynamic_params = {
             'asr_no_input_timeout': final_asr_timeout,
@@ -1128,6 +1137,7 @@ def conversation():
     logger.info(f"✅ 对话响应生成 - 结果: {response}")
     logger.info(f"✅ 对话响应生成 - 任务: {task_id}, 呼叫: {call_id}, 结束通话: {end_call}")
     return jsonify(response)
+
 
 @app.route('/gateway/destroy', methods=['POST'])
 def destroy_model():
@@ -1164,6 +1174,8 @@ def destroy_model():
             'success': False,
             'message': f'模型 {model_id} 删除失败{str(e)}',
         }), 500
+
+
 def check_model_service_health():
     """检查AI模型服务健康状态"""
     try:
@@ -1179,6 +1191,7 @@ def check_model_service_health():
     except Exception as e:
         logger.error(f"❌ 无法连接到AI模型服务: {str(e)}")
         return False
+
 
 def start_gateway_service(port=5001):
     """启动AI网关服务"""

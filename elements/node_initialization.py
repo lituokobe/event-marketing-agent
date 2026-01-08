@@ -1,6 +1,6 @@
 from langgraph.constants import END
 from langgraph.graph import StateGraph
-from pymilvus import MilvusClient
+from pymilvus import MilvusClient, AsyncMilvusClient
 from config.config_setup import NodeConfig, AgentConfig, KnowledgeContext, ChatflowDesignContext, GlobalConfigContext
 from elements.intention_node import IntentionNode
 from elements.reply_node import ReplyNode, ReplyNodeKT, ReplyNodeKGF
@@ -18,7 +18,7 @@ def create_base_node(
     global_config_context: GlobalConfigContext,
     chatflow_design_context: ChatflowDesignContext,
     intentions: list,
-    milvus_client: MilvusClient | None = None,
+    milvus_client: MilvusClient | AsyncMilvusClient | None = None,
 ):
     main_flow_id: str = main_flow.get("main_flow_id", "")
     main_flow_name: str = main_flow.get("main_flow_name", "")

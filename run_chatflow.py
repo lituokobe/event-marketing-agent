@@ -1,18 +1,19 @@
+import asyncio
 import json
-import redis
+import redis.asyncio as redis_async
 from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis import AsyncRedisSaver
 from agent_builders.chatflow_builder import build_chatflow
 from config.config_setup import ChatFlowConfig
 from config.db_setting import DBSetting
-from data.simulated_data_lt import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
+# from data.simulated_data_lt import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
 # from data.simulated_data_lt_simplified import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
 # from data.simulated_data import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
-# from data.simulated_data_xyp20251222 import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
+from data.simulated_data_xyp20251222 import agent_data, knowledge, knowledge_main_flow, chatflow_design, global_configs, intentions
 from functionals.log_utils import logger_chatflow
 
 # The function to run the chatflow
-def main(call_id: str, fresh_start: bool = True):
+async def main(call_id: str, fresh_start: bool = True):
     # Initialize chatflow config
     chatflow_config = ChatFlowConfig.from_files(
         agent_data,
@@ -31,35 +32,35 @@ def main(call_id: str, fresh_start: bool = True):
     But for the annotation of the node's __call__ function, we need to annotate config: RunnableConfig or keep it unannotated.
     Annotating it as dict or ANY will lead to error, even if it is a dict.
     """
-    # Redis
+    # TODO: Setup redis_client
     settings = DBSetting()
-    redis_pool = redis.ConnectionPool(
+    redis_client = redis_async.Redis( #异步Redis
         host=settings.REDIS_SERVER,
         password=settings.REDIS_PASSWORD,
-        port=settings.REDIS_PORT,
+        port=int(settings.REDIS_PORT),
         db=settings.REDIS_DB, # Redis Search requires index be built on database 0
         decode_responses=False, #Let Redis reserve the binary data, instead converting it to Python strings
         max_connections=50
     )
-    redis_client = redis.Redis(connection_pool=redis_pool)
-    redis_checkpointer = RedisSaver(redis_client=redis_client)
-    redis_checkpointer.setup() # Create and config Redis Search index
+    redis_checkpointer = AsyncRedisSaver(redis_client=redis_client)
+    await redis_checkpointer.setup()  # Async setup
 
-    # Check if need to remove history from the call ID
+    # Remove history from the call ID
     if fresh_start:
-        redis_checkpointer.delete_thread(call_id)
+        await redis_checkpointer.adelete_thread(call_id)
         logger_chatflow.info("系统消息：%s", f"{call_id}新对话")
     else:
         logger_chatflow.info("系统消息：%s", f"{call_id}重启对话")
 
-    # Build chatflow
-    chatflow = build_chatflow(chatflow_config, redis_checkpointer=redis_checkpointer)
+    # TODO: Build chatflow and get milvus_client
+    chatflow, milvus_client = await build_chatflow(chatflow_config, redis_checkpointer=redis_checkpointer)
 
+    # TODO: User talk to the agent
     print("=== 智能客服已上线 ===\n")
 
     # Step 1: Use empty input to trigger welcome message
-    state = chatflow.invoke({"messages": [HumanMessage(content="")]}, config=conv_config)
     # LangGraph accepts dict as config, and will automatically convert it to a RunnableConfig internally if needed.
+    state = await chatflow.ainvoke({"messages": [HumanMessage(content="")]}, config=conv_config)
 
     # Print initial assistant message
     messages = state.get("messages")
@@ -86,7 +87,7 @@ def main(call_id: str, fresh_start: bool = True):
 
         # Resume workflow
         try:
-            state = chatflow.invoke(new_user_message, config=conv_config) # invoke is best for call-bot, stream for text-bot
+            state = await chatflow.ainvoke(new_user_message, config=conv_config) # invoke is best for call-bot, stream for text-bot
         except Exception as e:
             logger_chatflow.error("系统错误：%s", {e})
             break
@@ -100,10 +101,14 @@ def main(call_id: str, fresh_start: bool = True):
                 print(f"智能客服：{msg.content}")  # Use .content, not ['content']
         print()  # Extra newline after all messages
 
+    # TODO: Close the async clients
+    await milvus_client.close()
+    await redis_client.aclose()
+
     return state
 
 if __name__ == "__main__":
-    state = main("test_call")
+    state = asyncio.run(main("test_call"))
 
     # Export state
     export_state = False

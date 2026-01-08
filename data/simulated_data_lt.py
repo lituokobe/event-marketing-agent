@@ -1,9 +1,9 @@
 agent_data = {
-  "enable_nlp": 0,
+  "enable_nlp": 1,
   "nlp_threshold": 0.8,
   "intention_priority": 3,
 
-  "use_llm": 1,
+  "use_llm": 0,
   "llm_name": "qwen_llm",#"local_llm" "deepseek_llm" "glm_llm", "qwen_llm",
   "llm_threshold": 3,
   "llm_context_rounds": 2,
@@ -11,7 +11,7 @@ agent_data = {
   "llm_background_info": "你现在正在沟通的都是可能会有装修需求的人，请尽量引导客户加微信",
 
   "vector_db_url": "http://127.0.0.1:19530",
-  "collection_name" : "home_reno321"
+  "collection_name" : "home_reno456"
 }
 
 chatflow_design = [

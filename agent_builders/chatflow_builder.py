@@ -1,7 +1,8 @@
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis import RedisSaver, AsyncRedisSaver
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
+from pymilvus import AsyncMilvusClient
 from config.config_setup import ChatFlowConfig
 from elements.edge_initialization import create_edges, create_knowledge_edges, create_global_edges, \
     create_knowledge_transfer_edges
@@ -10,10 +11,10 @@ from elements.node_initialization import create_base_node, create_transfer_node,
     create_global_reply_node, create_knowledge_transfer_node
 from functionals.log_utils import logger_chatflow
 from functionals.matchers import KeywordMatcher, SemanticMatcher
-from functionals.milvus import LaunchMilvus
+from functionals.milvus import initialize_milvus_async
 from functionals.state import ChatState
 
-def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSaver | None = None):
+async def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSaver | AsyncRedisSaver | None = None):
     # TODO: Load all the resources
     agent_config = chatflow_config.agent_config
     knowledge_context = chatflow_config.knowledge_context
@@ -29,14 +30,21 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
     """
     knowledge_keyword_matcher = None
     knowledge_semantic_matcher = None
-    milvus_client = None
+    milvus_client = AsyncMilvusClient()
 
     if agent_config.enable_nlp == 1: # Use semantic matching globally
         if agent_config.use_llm !=1 or agent_config.llm_threshold > 0:
             # for intentions from knowledge
             knowledge_keyword_matcher = KeywordMatcher(knowledge_context.knowledge)
-            # Initialize Milvus client
-            milvus_client = LaunchMilvus(agent_config.vector_db_url, agent_config.collection_name, intentions, knowledge_context.knowledge).client
+
+            # Initialize Milvus client - Async
+            milvus_client: AsyncMilvusClient = await initialize_milvus_async(
+                agent_config.vector_db_url,
+                agent_config.collection_name,
+                intentions,
+                knowledge_context.knowledge
+            )
+
             # Initialize knowledge_semantic_matcher
             knowledge_semantic_matcher = SemanticMatcher(
                 agent_config.collection_name,
@@ -221,7 +229,7 @@ def build_chatflow(chatflow_config: ChatFlowConfig, redis_checkpointer: RedisSav
     # TODO: Create the conditional edges from the START node
     graph.add_conditional_edges(START, route_to_workflow)
 
-    if redis_checkpointer:
-        return graph.compile(checkpointer=redis_checkpointer) # In production environment, use Redis as the checkpointer
+    if redis_checkpointer: # In production environment, use Redis as the checkpointer
+        return graph.compile(checkpointer=redis_checkpointer), milvus_client
 
-    return graph.compile(checkpointer=MemorySaver())
+    return graph.compile(checkpointer=MemorySaver()), milvus_client

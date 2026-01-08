@@ -1,3 +1,5 @@
+import asyncio
+
 from functionals.log_utils import logger_chatflow
 from functionals.matchers import KeywordMatcher, SemanticMatcher
 
@@ -83,38 +85,60 @@ class IntegratedSemanticMatcher:
             logger_chatflow.error(e_m)
             raise ValueError(e_m)
 
-    def match(self, user_input: str):
+    async def match(self, user_input: str):
         """
         Infer user intention using semantic similarity.
         Returns: (type_id, type_name, content, cos_score, inference_type)
         """
-        return self._match_strategy(user_input)
+        return await self._match_strategy(user_input)
 
-    def _try_match(self, matcher: SemanticMatcher, label: str, user_input:str):
-        result = matcher.find_most_similar(user_input)
+    async def _try_match(self, matcher: SemanticMatcher, label: str, user_input:str):
+        result = await matcher.find_most_similar(user_input)
         if result:
             tid, tname, cont, score = result
             if score > self.nlp_threshold:
                 return tid, tname, cont, score, label
         return None
 
-    def _match_intention_first(self, user_input: str):
-        match = self._try_match(self.semantic_matcher, "意图库", user_input)
+    async def _match_intention_first(self, user_input: str):
+        match = await self._try_match(self.semantic_matcher, "意图库", user_input)
         if match:
             return match
-        return (self._try_match(self.knowledge_semantic_matcher, "知识库", user_input) or
+        return (await self._try_match(self.knowledge_semantic_matcher, "知识库", user_input) or
                 ("", "", "", 0.0, "无"))
 
-    def _match_knowledge_first(self, user_input: str):
-        match = self._try_match(self.knowledge_semantic_matcher, "知识库", user_input)
+    async def _match_knowledge_first(self, user_input: str):
+        match = await self._try_match(self.knowledge_semantic_matcher, "知识库", user_input)
         if match:
             return match
-        return (self._try_match(self.semantic_matcher, "意图库", user_input) or
+        return (await self._try_match(self.semantic_matcher, "意图库", user_input) or
                 ("", "", "", 0.0, "无"))
 
-    def _match_integrated(self, user_input: str):
-        intention_result = self.semantic_matcher.find_most_similar(user_input)
-        knowledge_result = self.knowledge_semantic_matcher.find_most_similar(user_input)
+    async def _match_integrated(self, user_input: str):
+        DEFAULT_RESULT = ("", "", "", 0.0)
+        # Run both matches concurrently
+        tasks = [
+            self.semantic_matcher.find_most_similar(user_input),
+            self.knowledge_semantic_matcher.find_most_similar(user_input)
+        ]
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=3.0
+            )
+            intention_result, knowledge_result = results
+
+            # Normalize exceptions to default result
+            if isinstance(intention_result, Exception):
+                logger_chatflow.error(f"意图库语义匹配异常: {intention_result}")
+                intention_result = DEFAULT_RESULT
+            if isinstance(knowledge_result, Exception):
+                logger_chatflow.error(f"知识库语义匹配异常: {knowledge_result}")
+                knowledge_result = DEFAULT_RESULT
+
+        except asyncio.TimeoutError:
+            logger_chatflow.warning("语义匹配超时（3秒）")
+            intention_result = knowledge_result = DEFAULT_RESULT
 
         score_i = intention_result[3] if intention_result else -1.0
         score_k = knowledge_result[3] if knowledge_result else -1.0

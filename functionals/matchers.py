@@ -7,7 +7,7 @@ from config.config_setup import NodeConfig
 import ahocorasick
 
 # Semantic approach
-from pymilvus import MilvusClient
+from pymilvus import MilvusClient, AsyncMilvusClient
 from functionals.embedding_functions import embed_query
 
 # LLM approach
@@ -141,12 +141,15 @@ class KeywordMatcher:
 
 # TODO: Create a semantic matching class
 class SemanticMatcher:
-    def __init__(self, collection_name: str, intention_ids: set|list, milvus_client: MilvusClient | None = None):
+    def __init__(self,
+                 collection_name: str,
+                 intention_ids: set|list,
+                 milvus_client: MilvusClient | AsyncMilvusClient | None = None):
         self.collection_name = collection_name
         self.milvus_client = milvus_client
         self.intention_ids = intention_ids
 
-    def find_most_similar(self, sentence: str) -> tuple[str, str, str, float]:
+    async def find_most_similar(self, sentence: str) -> tuple[str, str, str, float]:
         """
         Find the most similar intention to the given sentence.
 
@@ -169,13 +172,13 @@ class SemanticMatcher:
             filter_expr = f"intention_id in [{id_list_str}]"
 
             # Perform search
-            results = self.milvus_client.search(
+            results = await self.milvus_client.search(
                 collection_name=self.collection_name,
                 data=[query_emb],
                 filter=filter_expr,
                 limit=1,
                 output_fields=["intention_id", "intention_name", "phrase"],
-                time_out = 3.0
+                timeout = 3.0
             )
 
             # Check if we have results
@@ -306,7 +309,7 @@ class LLMInferenceMatcher:
 
         return summary, id_
 
-    def llm_infer(self, chat_history: list, user_input: str) -> tuple[str, str, str, str, int]:
+    async def llm_infer(self, chat_history: list, user_input: str) -> tuple[str, str, str, str, int]:
         """
         Infer the user intention from the user input.
         """
@@ -344,7 +347,7 @@ class LLMInferenceMatcher:
             print(f"{self.config.node_id}-{self.config.node_name}节点的大模型提示词 \n{full_prompt}")
             print()
             # Invoke the llm
-            resp = self.llm_runnable.invoke([HumanMessage(content=full_prompt)])
+            resp = await self.llm_runnable.ainvoke([HumanMessage(content=full_prompt)])
 
             # Get the tokens consumed per round of conversation including the preconfigured doc string, full chat history, AI reply, etc.
             token_used = int(resp.response_metadata.get("token_usage", {}).get("total_tokens", 0))
